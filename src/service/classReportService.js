@@ -96,6 +96,8 @@ module.exports = {
           {
             model: Lesson,
             attributes: ["id"],
+            where: { isDeleted: false },
+            required: true,
             include: [
               {
                 model: Question,
@@ -198,10 +200,16 @@ module.exports = {
           ).length;
 
 
+          // let stduentAnswerPercent =
+          //   ((totalAnswerCount * StudentAnsweredCount) /
+          //     (StudentCount * questionCount)) *
+          //   100;
+
           let stduentAnswerPercent =
-            ((totalAnswerCount * StudentAnsweredCount) /
+            ((totalAnswerCount) /
               (StudentCount * questionCount)) *
             100;
+
           return stduentAnswerPercent ? parseInt(stduentAnswerPercent) : 0;
         }
 
@@ -221,8 +229,13 @@ module.exports = {
           obj.studentAnsweredCount = answerArray.filter(
             (index) => index !== 0
           ).length;
+          // obj.correctAnswerPercent =
+          //   ((obj.totalCorrectAnswerCount * obj.studentAnsweredCount) /
+          //     (StudentCount * questionCount)) *
+          //   100;
+
           obj.correctAnswerPercent =
-            ((obj.totalCorrectAnswerCount * obj.studentAnsweredCount) /
+            ((obj.totalCorrectAnswerCount) /
               (StudentCount * questionCount)) *
             100;
           return obj.correctAnswerPercent
@@ -316,6 +329,8 @@ module.exports = {
           {
             model: Lesson,
             attributes: ["id"],
+            where: { isDeleted: false },
+            required: true,
             include: [
               {
                 association: "questions",
@@ -340,8 +355,13 @@ module.exports = {
       assignmentData = JSON.parse(JSON.stringify(assignmentData));
       let assignmentIds = assignmentData.map((obj) => obj.id);
 
+      let answerFilter = {};
+
+      answerFilter.assignLessonId = { [Op.in]: assignmentIds };
+      req.query.studentId ? (answerFilter.studentId = req.query.studentId) : null;
+
       let answerData = await StudentLessonAnswer.findAll({
-        where: { assignLessonId: { [Op.in]: assignmentIds } },
+        where: { ...answerFilter },
       });
       answerData = JSON.parse(JSON.stringify(answerData));
 
@@ -404,7 +424,7 @@ module.exports = {
             // old code
             // let proficiency = pointsData.length ? pointsData.reduce((a, b) => a + b) / (processData.totalQuestionsCount * totalStudentCount) : 0;
             // processData.proficiency = parseInt((proficiency / (processData.totalQuestionsCount * totalStudentCount)) * 100); // get profociency percent
-            
+
             // new code
             processData.proficiency = pointsData.length
               ? parseInt(
@@ -455,7 +475,10 @@ module.exports = {
     }
 
     try {
-      const totalStudentCount = await ClasStudent.count({ where: filter });
+
+      let totalStudentCount = 0;
+      if (req.query.studentId) totalStudentCount = 1;
+      else totalStudentCount = await ClasStudent.count({ where: filter });
 
       let standardList = await Standard.findAll({
         attributes: ["id", "standardTitle", "status"],
@@ -483,6 +506,8 @@ module.exports = {
           {
             model: Lesson,
             attributes: ["id"],
+            where: { isDeleted: false },
+            required: true,
             include: [
               {
                 model: Question,
@@ -699,7 +724,18 @@ module.exports = {
     }
 
     try {
-      let assignmentCount = await AssignLesson.count({ where: { ...filter1, deletedAt: null } });
+      let assignmentCount = await AssignLesson.count(
+        {
+          where: { ...filter1, deletedAt: null },
+          include: [
+            {
+              model: Lesson,
+              attributes: ["id", "lessonTitle"],
+              where: { isDeleted: false },
+              required: true,
+            },
+          ],
+        });
 
       let studentData = await Class.findAll({
         attributes: ["id", "title", "grade_id"],
@@ -734,6 +770,8 @@ module.exports = {
                           {
                             model: Lesson,
                             attributes: ["id", "lessonTitle"],
+                            where: { isDeleted: false },
+                            required: true,
                             include: [
                               {
                                 model: Question,
@@ -1006,6 +1044,8 @@ module.exports = {
           {
             model: Lesson,
             attributes: ["id"],
+            where: { isDeleted: false },
+            required: true,
             include: [
               {
                 model: Question,
@@ -1237,9 +1277,10 @@ module.exports = {
       assignmentData.class.class_students.map((classStud) => {
         let myObj = {};
         myObj.id = classStud.student.id;
-        myObj.assignmentId = param_id;
+        myObj.assignmentId = parseInt(param_id);
         myObj.firstName = classStud.student.firstName;
         myObj.lastName = classStud.student.lastName;
+        myObj.classId = classStud.classId;
         myObj.startDate = classStud.student.studentLessonProgress.length
           ? classStud.student.studentLessonProgress[0].startedAt
           : null;
@@ -1249,7 +1290,7 @@ module.exports = {
         let progressData = classStud.student.studentLessonProgress;
         if (progressData.length) {
           progressData = progressData[0];
-          if (progressData.percentCompleted <= 20) myObj.staus = "Need Help";
+          if (progressData.percentCompleted <= 20) myObj.status = "Need Help";
           if (
             progressData.percentCompleted > 20 &&
             progressData.percentCompleted < 100
@@ -1447,6 +1488,7 @@ module.exports = {
       throw err;
     }
   },
+
   studentAboveAndBelowAverageActivity: async (req, param_id) => {
     const filter = {};
     if (param_id) {
@@ -1496,22 +1538,12 @@ module.exports = {
     try {
       const roleId = (await Role.findOne({ where: { title: "Student" } })).id;
 
-      const classDetails = await Class.findAll({
-        where: filter,
-        attributes: ["id"]
-      })
 
-      classIds = classDetails.map((obj) => obj.id)
 
-      let studentData = await ClasStudent.findAll({
-        attributes: ["id", "studentId", "classId"],
-        where: {
-          classId: classIds
-        },
-        include: [
-          {
-            model: Student,
-            attributes: ["id", "firstName", "lastName"],
+
+      let studentData = await Student.findAll({
+            attributes: ["id", "firstName", "lastName", "status"],
+            where: filter,
             include: [
               {
                 model: StudentSession,
@@ -1528,20 +1560,19 @@ module.exports = {
                 required: false
               },
             ],
-          },
-        ],
       });
 
       studentData = JSON.parse(JSON.stringify(studentData));
       let totalStudents = studentData.length;
       let processData = studentData.map(obj => {
         let newObj = {};
-        newObj.StudentId = obj.studentId;
-        if (obj.student.studentSessionData.length === 0) newObj.studentSessionHour = 0;
+        newObj.StudentId = obj.id;
+        newObj.status = obj.status;
+        if (obj.studentSessionData.length === 0) newObj.studentSessionHour = 0;
         else {
-          let sessionData = obj.student.studentSessionData.filter(sessionObj => sessionObj.sessionMins !== null);
+          let sessionData = obj.studentSessionData.filter(sessionObj => sessionObj.sessionMins !== null);
           let studentSessionHour = sessionData.map(timeObj => timeObj.sessionMins);
-          newObj.studentSessionHour = studentSessionHour.length ? parseFloat(studentSessionHour.reduce((a, b) => a + b) / (7 * 60)).toFixed(2) : 0;
+          newObj.studentSessionHour = studentSessionHour.length ? parseFloat(studentSessionHour.reduce((a, b) => a + b) / 60).toFixed(2) : 0;
         }
         return newObj;
       });
@@ -1549,13 +1580,13 @@ module.exports = {
       let finalObj = {};
       let sessionDataList = processData.map(obj => parseFloat(obj.studentSessionHour));
       finalObj.totalAverageHour = sessionDataList.length ? (sessionDataList.reduce((a, b) => a + b) / (totalStudents)).toFixed(2) : 0;
-      finalObj.belowAverageCount = processData.filter(obj => obj.StudentSessionHour <= finalObj.totalAverageHour).length;
+      finalObj.belowAverageCount = processData.filter(obj => obj.studentSessionHour <= finalObj.totalAverageHour && obj.status).length;
       finalObj.belowAveragePercent = (finalObj.belowAverageCount / totalStudents) * 100;
 
-      finalObj.aboveAverageCount = processData.filter(obj => obj.StudentSessionHour > finalObj.totalAverageHour).length;
+      finalObj.aboveAverageCount = processData.filter(obj => obj.studentSessionHour > finalObj.totalAverageHour && obj.status).length;
       finalObj.aboveAveragePercent = (finalObj.aboveAverageCount / totalStudents) * 100;
 
-      finalObj.inactiveStudentCount = totalStudents - (finalObj.belowAverageCount + finalObj.aboveAverageCount);
+      finalObj.inactiveStudentCount = processData.filter(item => item.status === false).length;
       finalObj.inactiveStudentPercent = (finalObj.inactiveStudentCount / totalStudents) * 100;
 
       // return utils.responseGenerator(StatusCodes.OK, "Session data fetched", { studentData, processData, totalStudents, finalObj });
@@ -1565,6 +1596,7 @@ module.exports = {
       throw err;
     }
   },
+
   dashboardTimeSpent: async (param_id, user_id) => {
     const filter = {};
     param_id ? (filter.classId = param_id) : null;
@@ -1582,7 +1614,7 @@ module.exports = {
         include: [
           {
             model: Student,
-            attributes: ["id", "firstName", "lastName"],
+            attributes: ["id", "firstName", "lastName", "status"],
             include: [
               {
                 model: StudentSession,
@@ -1608,11 +1640,12 @@ module.exports = {
       let processData = studentData.map(obj => {
         let newObj = {};
         newObj.StudentId = obj.studentId;
+        newObj.status = obj.student.status;
         if (obj.student.studentSessionData.length === 0) newObj.studentSessionHour = 0;
         else {
           let sessionData = obj.student.studentSessionData.filter(sessionObj => sessionObj.sessionMins !== null);
           let studentSessionHour = sessionData.map(timeObj => timeObj.sessionMins);
-          newObj.studentSessionHour = studentSessionHour.length ? parseFloat(studentSessionHour.reduce((a, b) => a + b) / (7 * 60)).toFixed(2) : 0;
+          newObj.studentSessionHour = studentSessionHour.length ? parseFloat(studentSessionHour.reduce((a, b) => a + b) / 60).toFixed(2) : 0;
         }
         return newObj;
       });
@@ -1620,13 +1653,13 @@ module.exports = {
       let finalObj = {};
       let sessionDataList = processData.map(obj => parseFloat(obj.studentSessionHour));
       finalObj.totalAverageHour = sessionDataList.length ? (sessionDataList.reduce((a, b) => a + b) / (totalStudents)).toFixed(2) : 0;
-      finalObj.belowAverageCount = processData.filter(obj => obj.StudentSessionHour <= finalObj.totalAverageHour).length;
+      finalObj.belowAverageCount = processData.filter(obj => obj.studentSessionHour <= finalObj.totalAverageHour && obj.status).length;
       finalObj.belowAveragePercent = (finalObj.belowAverageCount / totalStudents) * 100;
 
-      finalObj.aboveAverageCount = processData.filter(obj => obj.StudentSessionHour > finalObj.totalAverageHour).length;
+      finalObj.aboveAverageCount = processData.filter(obj => obj.studentSessionHour > finalObj.totalAverageHour && obj.status).length;
       finalObj.aboveAveragePercent = (finalObj.aboveAverageCount / totalStudents) * 100;
 
-      finalObj.inactiveStudentCount = totalStudents - (finalObj.belowAverageCount + finalObj.aboveAverageCount);
+      finalObj.inactiveStudentCount = processData.filter(item => item.status === false).length;
       finalObj.inactiveStudentPercent = (finalObj.inactiveStudentCount / totalStudents) * 100;
 
       // return utils.responseGenerator(StatusCodes.OK, "Session data fetched", { studentData, processData, totalStudents, finalObj });
@@ -1635,6 +1668,204 @@ module.exports = {
     } catch (err) {
       throw err;
     }
-  }
+  },
+
+  getStudentStandardReport: async (req, user_id) => {
+    const filter = {};
+
+    if (req.query.classId) filter.classId = req.query.classId;
+    if (!req.query.studentId) return utils.responseGenerator(StatusCodes.BAD_REQUEST, "Student id is missing");
+    if (!req.query.questionTypeKey) req.query.questionTypeKey = ["ela", "math", "ngss", "ncss"];
+
+    try {
+      // const totalStudentCount = await ClasStudent.count({ where: filter });
+
+      let standardList = await Standard.findAll({
+        attributes: ["id", "standardTitle", "status"],
+      });
+
+      let assignmentData = await AssignLesson.findAll({
+        attributes: [
+          "id",
+          "assignmentTitle",
+          "lessonId",
+          "classId",
+          "startDate",
+          "endDate",
+        ],
+        where: {
+          ...filter,
+          deletedAt: null,
+        },
+        include: [
+          {
+            model: Lesson,
+            attributes: ["id"],
+            include: [
+              {
+                model: Question,
+                attributes: ["id", "transactionId", "questionTypeId"],
+                where: { isDelete: false },
+                required: false,
+                include: [
+                  {
+                    model: QuestionStandard,
+                    attributes: ["standardId"],
+                    as: "questionStandard",
+                  },
+                  {
+                    association: "questionType",
+                    attributes: ["key"],
+                    where: { key: req.query.questionTypeKey },
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            model: StudentLessonProgress,
+            attributes: [
+              "id",
+              "assignLessonId",
+              "studentId",
+              "percentCompleted",
+              "startedAt",
+              "endedAt",
+            ],
+            where: { studentId: req.query.studentId },
+            as: "studentProgressList",
+          },
+          {
+            model: StudentLessonAnswer,
+            attributes: [
+              "id",
+              "studentId",
+              "assignLessonId",
+              "questionId",
+              "isCorrect",
+              "pointsEarned",
+            ],
+            where: { studentId: req.query.studentId },
+            as: "studentLessonAnswers",
+          },
+        ],
+      });
+      standardList = JSON.parse(JSON.stringify(standardList));
+      assignmentData = JSON.parse(JSON.stringify(assignmentData));
+
+      assignmentData = assignmentData.map(obj => {
+        obj.studentLessonAnswers = obj.studentLessonAnswers.map(ansObj => {
+          for (let elm of obj.lesson.questions) {
+            if (elm.id === ansObj.questionId) return ansObj;
+          }
+        });
+        return obj;
+      });
+
+      assignmentData = assignmentData.map(obj => {
+        obj.studentLessonAnswers = obj.studentLessonAnswers.filter(ansObj => ansObj);
+        return obj;
+      });
+
+      standardList = standardList.map((obj) => {
+        obj.assignments = assignmentData.map((assignObj) => {
+          if (
+            assignObj.lesson.questions.find(
+              (qObj) => (qObj.questionStandard ? qObj.questionStandard.standardId : null) === obj.id
+            )
+          ) {
+            return assignObj;
+          }
+        });
+        return obj;
+      });
+
+
+      standardList = standardList.map((obj) => {
+        obj.assignments = obj.assignments.filter((elm) => elm !== undefined);
+        return obj;
+      });
+
+      let standardData = standardList.filter(obj => obj.assignments.length > 0);
+
+
+      // console.log('standardData === ', JSON.stringify(standardData));
+
+      standardData = standardData.map((obj) => {
+        let newObj = {};
+        newObj.id = obj.id;
+        newObj.title = obj.standardTitle;
+
+        let questionData = obj.assignments.map(
+          (newObj) => newObj.lesson.questions.filter(quesObj => quesObj.questionStandard.standardId === obj.id).length
+        );
+
+        let questionIds = [];
+        obj.assignments.map(
+          (newObj) => newObj.lesson.questions.map(quesObj => {
+            if (quesObj.questionStandard.standardId === obj.id) {
+              questionIds.push(quesObj.id);
+            }
+          })
+        );
+
+        let questionsCount = questionData.length
+          ? questionData.reduce((a, b) => a + b)
+          : 0;
+
+        let studentAnswersList = [];
+        obj.assignments.map((myObj) =>
+          myObj.studentLessonAnswers.map((myObj2) => {
+            if (questionIds.find(id => id == myObj2.questionId)) studentAnswersList.push(myObj2);
+          })
+        );
+
+        let finalData = {};
+        let pointsArray = studentAnswersList.map((ansObj) => parseFloat(ansObj.pointsEarned));
+        newObj.correcResponseCount = studentAnswersList.filter((ansObj) => ansObj.isCorrect == true).length;
+        newObj.incorrectAttemptsCount = studentAnswersList.filter((ansObj) => ansObj.isCorrect == false).length;
+
+        finalData.totalMarks = pointsArray.length
+          ? pointsArray.reduce((a, b) => a + b)
+          : 0;
+        finalData.marksPercent = parseInt(
+          (finalData.totalMarks / questionsCount) * 100
+        );
+
+
+        if (finalData.marksPercent < 25) newObj.proficiency = 'Emerging';
+        if (finalData.marksPercent > 24 && finalData.marksPercent < 75) newObj.proficiency = 'Proficient';
+        if (finalData.marksPercent > 75) newObj.proficiency = 'Advanced';
+
+
+        // let StudentProgress = obj.assignments.map((myObj) =>
+        //   myObj.studentProgressList.map(progress => progress)[0],
+        // )[0];
+
+        // if (StudentProgress.percentCompleted == 0 || StudentProgress.percentCompleted === null) {
+        //   newObj.assignmentStatus = 'Not Started';
+        // } else if (StudentProgress.percentCompleted < 20) {
+        //   newObj.assignmentStatus = 'Need Help';
+        // } else if (StudentProgress.percentCompleted > 20 && StudentProgress.percentCompleted < 99) {
+        //   newObj.assignmentStatus = 'Making progress';
+        // } else {
+        //   newObj.assignmentStatus = 'Completed';
+        // }
+
+        return newObj;
+      });
+
+      return utils.responseGenerator(
+        StatusCodes.OK,
+        "Standard report fetched",
+        standardData
+      );
+    } catch (err) {
+      console.log(err);
+      throw err;
+    }
+  },
 
 };
+
+

@@ -37,21 +37,21 @@ module.exports = (sequelize, DataTypes) => {
       //   },
       // },
 
-      easyOrdering: {
-        type: DataTypes.TEXT,
-        allowNull: false,
-        field: "easy_ordering",
-      },
+      // easyOrdering: {
+      //   type: DataTypes.TEXT,
+      //   allowNull: false,
+      //   field: "easy_ordering",
+      // },
 
-      categoryId: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        field: "category_id",
-        references: {
-          model: "categories",
-          key: "id",
-        },
-      },
+      // categoryId: {
+      //   type: DataTypes.INTEGER,
+      //   allowNull: false,
+      //   field: "category_id",
+      //   references: {
+      //     model: "categories",
+      //     key: "id",
+      //   },
+      // },
 
       // typeId: {
       //   type: DataTypes.INTEGER,
@@ -73,15 +73,15 @@ module.exports = (sequelize, DataTypes) => {
       //   },
       // },
 
-      tagId: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        field: "tag_id",
-        references: {
-          model: "tags",
-          key: "id",
-        },
-      },
+      // tagId: {
+      //   type: DataTypes.INTEGER,
+      //   allowNull: false,
+      //   field: "tag_id",
+      //   references: {
+      //     model: "tags",
+      //     key: "id",
+      //   },
+      // },
 
       kitchenRequirements: {
         type: DataTypes.TEXT,
@@ -94,11 +94,16 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
       },
 
-      spotlightVideo: {
+      description: {
         type: DataTypes.TEXT,
-        allowNull: false,
-        field: "spotlight_video",
+        allowNull: true,
       },
+      
+      // spotlightVideo: {
+      //   type: DataTypes.TEXT,
+      //   allowNull: false,
+      //   field: "spotlight_video",
+      // },
 
       status: {
         type: DataTypes.BOOLEAN,
@@ -149,15 +154,15 @@ module.exports = (sequelize, DataTypes) => {
     // culinaryTechnique.belongsTo(models.languages, {
     //   foreignKey: "languageId",
     // });
-    culinaryTechnique.belongsTo(models.categories, {
-      foreignKey: "categoryId",
-    });
+    // culinaryTechnique.belongsTo(models.categories, {
+    //   foreignKey: "categoryId",
+    // });
     // culinaryTechnique.belongsTo(models.types, {
     //   foreignKey: "typeId",
     // });
-    culinaryTechnique.belongsTo(models.tags, {
-      foreignKey: "tagId",
-    });
+    // culinaryTechnique.belongsTo(models.tags, {
+    //   foreignKey: "tagId",
+    // });
     // culinaryTechnique.belongsTo(models.uses, {
     //   foreignKey: "usesId",
     // });

@@ -14,6 +14,10 @@ module.exports = {
    *       name: country
    *       schema:
    *        type: string
+   *     - in: query
+   *       name: lessonId
+   *       schema:
+   *        type: string
    *     responses:
    *       200:
    *         description: Recipies fetched successfully.

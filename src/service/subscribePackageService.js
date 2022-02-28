@@ -4,6 +4,7 @@ let SubscriptionPackage = require("../models/").subscription_packages;
 let SubscribePackage = require("../models/").subscribe_packages;
 let Student = require("../models").students;
 let Class = require("../models/").classes;
+let User = require("../models").users;
 
 const { StatusCodes } = require("http-status-codes");
 const utils = require("../helpers/utils");
@@ -13,12 +14,12 @@ let stripeHelper = require("../helpers/stripeHelper");
 module.exports = {
   getsubscribePackageById: async (id) => {
     try {
-      const { entityId, roleId,entityType, isSubUser } =
-      await modelHelper.entityDetails(id);
+      const { entityId, roleId, entityType, isSubUser } =
+        await modelHelper.entityDetails(id);
       let getsubscribePackage = await SubscribePackage.findOne({
         where: {
           id: id,
-          roleId: roleId
+          roleId: roleId,
         },
       });
       return utils.responseGenerator(
@@ -32,8 +33,8 @@ module.exports = {
   },
   getActiveSubscribePackage: async (id) => {
     try {
-      const { entityId, roleId,entityType, isSubUser } =
-      await modelHelper.entityDetails(id);
+      const { entityId, roleId, entityType, isSubUser } =
+        await modelHelper.entityDetails(id);
       let getActiveSubscribePackage = await SubscribePackage.findOne({
         where: {
           entityId: id,
@@ -41,7 +42,7 @@ module.exports = {
           isActive: true,
         },
       });
-    
+
       return utils.responseGenerator(
         StatusCodes.OK,
         "Fetched active subscribed package successfully",
@@ -51,7 +52,7 @@ module.exports = {
       console.log(err);
     }
   },
-  getActiveStudentPackage: async (id,roleId) => {
+  getActiveStudentPackage: async (id, roleId) => {
     try {
       let getActiveSubscribePackage = await SubscribePackage.findOne({
         where: {
@@ -60,7 +61,7 @@ module.exports = {
           isActive: true,
         },
       });
-    
+
       return utils.responseGenerator(
         StatusCodes.OK,
         "Fetched active subscribed package successfully",
@@ -73,6 +74,8 @@ module.exports = {
 
   createSubscribePackage: async (reqBody, reqUser) => {
     try {
+      let currentMonth = new Date().getMonth();
+      let isSubscriptionPause = false;
       // let deletedPayment=await Payment.destroy({
       //   where:{
       //     subscribeId:reqBody.subscribeId
@@ -87,12 +90,13 @@ module.exports = {
 
       //    })
       // }
-      const { entityId, roleId,entityType, isSubUser } =
-      await modelHelper.entityDetails(reqBody.entityId);
+      const { entityId, roleId, entityType, isSubUser } =
+        await modelHelper.entityDetails(reqBody.entityId);
       const subscribePackageDetails = await SubscribePackage.findAll({
         where: {
           entityId: reqBody.entityId,
           roleId: roleId,
+          isActive: true,
         },
       });
       if (subscribePackageDetails) {
@@ -101,15 +105,29 @@ module.exports = {
           {
             where: {
               entityId: reqBody.entityId,
-              roleId: roleId
+              roleId: roleId,
+              isActive: true,
             },
           }
         );
       }
-      // if (subscribePackageDetails.subscriptionId)
-      //   await stripeHelper.cancelSubscription(
-      //     subscribePackageDetails.subscriptionId
-      //   );
+
+      const subscriptionPackage = await SubscriptionPackage.findOne({
+        where: {
+          id: reqBody.packageId,
+        },
+      });
+
+      if (subscriptionPackage.validityFrom != (++currentMonth)) isSubscriptionPause = true;
+
+      await User.update(
+        { isSubscriptionPause: isSubscriptionPause },
+        {
+          where: {
+            id: reqBody.entityId,
+          },
+        }
+      );
 
       const savedSubscribePackage = await SubscribePackage.create({
         uuid: await utils.getUUID("SP"),

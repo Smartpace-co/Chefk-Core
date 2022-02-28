@@ -4,8 +4,8 @@ const Joi = require("joi");
 //create
 const create = Joi.object({
   title: Joi.string().max(45).required(),
-  district_id: Joi.number(),
-  school_id: Joi.number(),
+  district_id: Joi.number().allow(null),
+  school_id: Joi.number().allow(null),
   // teacher_id: Joi.number(),
   description: Joi.string().max(250),
   assigned_teacher_ids: Joi.array().items(Joi.number()).min(1).required(),
@@ -25,7 +25,7 @@ const update = Joi.object({
   assigned_standard_ids: Joi.array().items(Joi.number()),
   assigned_student_ids: Joi.array().items(Joi.number()),
   number_of_students: Joi.number(),
-  school_id: Joi.number(),
+  school_id: Joi.number().allow(null),
   status: Joi.boolean(),
 });
 //checkSchoolNameConflict

@@ -17,10 +17,10 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.TEXT,
         allowNull: true,
       },
-      type: {
-        type: DataTypes.ENUM(["parent", "guardian"]),
-        allowNull: false,
-      },
+      // type: {
+      //   type: DataTypes.ENUM(["parent", "guardian"]),
+      //   allowNull: false,
+      // },
       createdBy: {
         type: DataTypes.INTEGER,
         field: "created_by",

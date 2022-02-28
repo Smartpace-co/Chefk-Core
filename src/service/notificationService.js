@@ -15,7 +15,7 @@ module.exports = {
     templateVars
   ) => {
 
-    console.log('inside notification function ==', templateVars);
+    // console.log('inside notification function ==', templateVars);
     try {
       let notificationType = await NotificationType.findOne({
         where: { key: notificationKey },
@@ -37,11 +37,11 @@ module.exports = {
         });
         await Notification.bulkCreate(notificationsEntity);
       } else {
-        console.log(notificationType)
-        console.log(entityIds)
-        console.log(roleId)
-        console.log(description)
-        console.log(reqUserId)
+        // console.log(notificationType)
+        // console.log(entityIds)
+        // console.log(roleId)
+        // console.log(description)
+        // console.log(reqUserId)
 
         await Notification.create({
           entityId: entityIds,
@@ -84,6 +84,7 @@ module.exports = {
             as: "notificationType",
           },
         ],
+        order: [["createdAt", "DESC"]],
         ...pagging,
       });
 
@@ -122,7 +123,7 @@ module.exports = {
 
   updateNotifications: async (entityId, roleId, notificationIds, reqUser) => {
     try {
-      console.log(notificationIds)
+      // console.log(notificationIds)
       let notificationDetails = await Notification.update(
         { isSeen: true, updatedBy: reqUser.id },
         {

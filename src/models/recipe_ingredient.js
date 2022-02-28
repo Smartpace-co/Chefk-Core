@@ -68,6 +68,12 @@ module.exports = (sequelize, DataTypes) => {
         field: "is_optional",
       },
       
+      isSpotlight: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+        field: "is_spotlight",
+      },
+
       status: {
         type: DataTypes.BOOLEAN,
         defaultValue: true,

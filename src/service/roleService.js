@@ -107,11 +107,9 @@ module.exports = {
       const pagging = {};
       parseInt(page_size) ? (pagging.offset = parseInt(page_size) * (page_no - 1)) : null;
       parseInt(page_size) ? (pagging.limit = parseInt(page_size)) : null;
-      //accessibleIds of this user
-      const ids = await modelHelper.accessibleIds(user_id);
       const { count, rows: allRoles } = await Role.findAndCountAll({
         distinct: true,
-        where: { ...filter, createdBy: [user_id, ...ids] },
+        where: { ...filter, createdBy: user_id },
         include: [
           {
             model: Role_module,
@@ -138,10 +136,8 @@ module.exports = {
   },
   async getRole(param_id, user_id) {
     try {
-      //accessibleIds of this user
-      const ids = await modelHelper.accessibleIds(user_id);
       const role = await Role.findOne({
-        where: { id: param_id, createdBy: [user_id, ...ids] },
+        where: { id: param_id, createdBy: user_id },
         include: [
           {
             model: Role_module,
@@ -168,7 +164,6 @@ module.exports = {
 
   async getUserRole(param_id) {
     try {
-      //accessibleIds of this user
       const { id, role_id } = await User.findOne({
         where: { id: param_id },
       });
@@ -181,9 +176,7 @@ module.exports = {
 
   async updateRole(param_id, reqBody, user_id) {
     try {
-      //accessibleIds of this user
-      const ids = await modelHelper.accessibleIds(user_id);
-      const roleDetails = await Role.findOne({ where: { id: param_id, createdBy: [user_id, ...ids] } });
+      const roleDetails = await Role.findOne({ where: { id: param_id, createdBy: user_id } });
       if (!roleDetails) {
         return utils.responseGenerator(StatusCodes.NOT_FOUND, "Role does not exist");
       }
@@ -209,11 +202,7 @@ module.exports = {
 
   async deleteRole(param_id, user_id) {
     try {
-      //accessibleIds of this user
-      console.log(user_id);
-
-      const ids = await modelHelper.accessibleIds(user_id);
-      const roleDetails = await Role.findOne({ where: { id: param_id, createdBy: [user_id, ...ids] } });
+      const roleDetails = await Role.findOne({ where: { id: param_id, createdBy: user_id } });
       if (!roleDetails) {
         return utils.responseGenerator(StatusCodes.NOT_FOUND, "Role does not exist", roleDetails);
       }

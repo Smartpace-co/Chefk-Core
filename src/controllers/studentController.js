@@ -132,8 +132,6 @@ module.exports = {
    *                 type: array
    *                 items:
    *                   type: number
-   *               contactType:
-   *                 type: string
    *               contactPersonName:
    *                 type: string
    *               contactPersonRelationId:
@@ -403,8 +401,6 @@ module.exports = {
    *                             format: nullable
    *                           gender:
    *                             type: string
-   *                           contactType:
-   *                             type: string
    *                           contactPersonEmail:
    *                             type: string
    *                           contactPersonNumber:
@@ -606,8 +602,6 @@ module.exports = {
    *                             format: nullable
    *                           gender:
    *                             type: string
-   *                           contactType:
-   *                             type: string
    *                           contactPersonEmail:
    *                             type: string
    *                           contactPersonNumber:
@@ -795,8 +789,6 @@ module.exports = {
    *                 type: array
    *                 items:
    *                   type: number
-   *               contactType:
-   *                 type: string
    *               contactPersonName:
    *                 type: string
    *               contactPersonRelationId:
@@ -923,8 +915,6 @@ module.exports = {
    *                             type: string
    *                             format: nullable
    *                           gender:
-   *                             type: string
-   *                           contactType:
    *                             type: string
    *                           contactPersonEmail:
    *                             type: string

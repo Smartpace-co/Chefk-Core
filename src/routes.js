@@ -245,8 +245,8 @@ router.get("/classBySchool/:schoolId", authenticateToken, classController.getCla
 router.get("/class", authenticateToken, classController.getAllClasses);
 router.get("/class/:id", authenticateToken, classController.getClass);
 router.put("/class/:id", authenticateToken, joiValidator(classSchema.update), classController.updateClass);
-router.put("/class/archieve/:id", authenticateToken, classController.archiveClass);
-router.put("/class/unArchieve/:id", authenticateToken, classController.unArchiveClass);
+router.put("/class/archive/:id", authenticateToken, classController.archiveClass);
+router.put("/class/unArchive/:id", authenticateToken, classController.unArchiveClass);
 router.delete("/class/delete/:id", authenticateToken, classController.deleteClass);
 
 router.post("/class/joinClass", authenticateToken, joiValidator(classSchema.joinClass), classController.joinClass);
@@ -267,6 +267,8 @@ router.get("/report/byAssignment/:id", authenticateToken, classReportController.
 router.get("/report/byStudent/:id", authenticateToken, classReportController.studentReportByClass);
 
 router.get("/report/studentReport/:id", authenticateToken, classReportController.getStudentReport);
+
+router.get("/report/studentStandardReport", authenticateToken, classReportController.getStudentStandardReport);
 
 router.put("/report/updateAnswer", authenticateToken, joiValidator(classReportSchema.answerUpdate), classReportController.stduentAnswerCheck);
 
@@ -465,8 +467,8 @@ router.put(
 );
 
 router.get("/assignment", authenticateToken, assignmentController.getAllAssignments);
-router.put("/assignment/archieve/:id", authenticateToken, assignmentController.archiveAssignment);
-router.put("/assignment/unArchieve/:id", authenticateToken, assignmentController.unArchiveAssignment);
+router.put("/assignment/archive/:id", authenticateToken, assignmentController.archiveAssignment);
+router.put("/assignment/unArchive/:id", authenticateToken, assignmentController.unArchiveAssignment);
 
 router.get("/assignment/teacherInstruction/:lessonId", authenticateToken, assignmentController.getTeacherInstruction);
 router.get("/assignment/recipeIngredients/:assignmentId", authenticateToken, assignmentController.getRecipeIngredients);
@@ -481,6 +483,7 @@ router.put(
 router.delete("/assignment/:id", authenticateToken, assignmentController.deleteAssignment);
 
 router.get("/lesson/assigned", authenticateToken, lessonsController.getAllAssignedLessons);
+router.get("/lesson/assignedRecipeTitle/:id", authenticateToken, lessonsController.getAssignedRecipeTitle);
 router.get("/lesson/assigned/:id", authenticateToken, lessonsController.getAssignedLesson);
 router.get("/lesson/:id", authenticateToken, lessonsController.getLesson);
 router.post(

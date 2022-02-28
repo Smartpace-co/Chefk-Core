@@ -91,10 +91,10 @@ module.exports = (sequelize, DataTypes) => {
       //   type: DataTypes.STRING(250),
       //   allowNull: true,
       // },
-      contactType: {
-        type: DataTypes.ENUM("parent", "guardian"),
-        field: "contact_type",
-      },
+      // contactType: {
+      //   type: DataTypes.ENUM("parent", "guardian"),
+      //   field: "contact_type",
+      // },
       contactPersonEmail: {
         type: DataTypes.STRING(45),
         allowNull: true,

@@ -3,6 +3,9 @@ let utils = require("../helpers/utils");
 const uploadImage = require("../middleware/imageUpload");
 const uploadFile = require("../middleware/fileUpload");
 let { StatusCodes } = require("http-status-codes");
+const env = process.env.NODE_ENV || "development";
+const config = require("../../config/config")[env];
+const file_upload_location = config.file_upload_location;
 
 module.exports = {
   checkEmailConflict: async (email) => {
@@ -63,7 +66,7 @@ module.exports = {
   getDemoFile: async (req, res, entityType) => {
     try {
       const fileName = entityType + ".xlsx";
-      const file = process.env.FILE_UPLOAD_LOCATION + "/" + fileName;
+      const file = file_upload_location + "/" + fileName;
       res.download(file, req.params.fileName, (error) => {
         if (error) res.status(error.statusCode).send({ status: error.statusCode, message: error.message });
       });

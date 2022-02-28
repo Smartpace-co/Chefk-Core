@@ -89,7 +89,7 @@ module.exports = {
     try {
       const { id } = req.user;
       const param_id = req.params.id;
-      let response = await classReportService.classReportByStandard(req,param_id, id);
+      let response = await classReportService.classReportByStandard(req, param_id, id);
       res.status(response.status).send(response);
     } catch (err) {
       next(err);
@@ -130,14 +130,26 @@ module.exports = {
     }
   },
 
-  
+
   studentAboveAndBelowAverageActivity: async (req, res, next) => {
     try {
       const { id } = req.user;
-      let response = await classReportService.studentAboveAndBelowAverageActivity(req,id);
+      let response = await classReportService.studentAboveAndBelowAverageActivity(req, id);
       res.status(response.status).send(response);
     } catch (err) {
       next(err);
     }
   },
+
+  getStudentStandardReport: async (req, res, next) => {
+    try {
+      const { id } = req.user;
+      // const param_id = req.params.id;
+      let response = await classReportService.getStudentStandardReport(req, id);
+      res.status(response.status).send(response);
+    } catch (err) {
+      next(err);
+    }
+  },
+
 };

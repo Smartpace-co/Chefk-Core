@@ -35,11 +35,11 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true,
       },
 
-      estimatedTime: {
-        type: DataTypes.INTEGER,
-        allowNull: true,
-        field: "estimated_time",
-      },
+      // estimatedTime: {
+      //   type: DataTypes.INTEGER,
+      //   allowNull: true,
+      //   field: "estimated_time",
+      // },
 
       isApplicableForBigChef: {
         type: DataTypes.BOOLEAN,

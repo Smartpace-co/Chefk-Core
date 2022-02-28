@@ -36,16 +36,16 @@ module.exports = (sequelize, DataTypes) => {
         field: "estimated_time",
       },
 
-      dialogue: {
-        type: DataTypes.TEXT,
-        allowNull: true,
-      },
+      // dialogue: {
+      //   type: DataTypes.TEXT,
+      //   allowNull: true,
+      // },
 
-      animationLink: {
-        type: DataTypes.TEXT,
-        allowNull: true,
-        field: "animation_link",
-      },
+      // animationLink: {
+      //   type: DataTypes.TEXT,
+      //   allowNull: true,
+      //   field: "animation_link",
+      // },
 
       estimatedTime: {
         type: DataTypes.INTEGER,

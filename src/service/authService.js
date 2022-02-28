@@ -27,6 +27,7 @@ const sequelize = require("sequelize");
 const Op = sequelize.Op;
 const resetPasswordPath = config.reset_password_path;
 let resetPasswordTemplateId = config.sendgrid.reset_password_template_id;
+const trialPeriod = 7; // in days
 
 module.exports = {
   getGuestToken: async () => {
@@ -50,7 +51,10 @@ module.exports = {
   login: async (email, password) => {
     try {
       let subscribePackageDetails,
-        isSubscriptionPause = false;
+        isSubscriptionPause = false,
+        isTrialPeriodEnd = false,
+        signupDate,
+        utcDate = new Date(new Date().toUTCString());
       const user = await User.findOne({
         attributes: { exclude: ["token"] },
         where: { email: email },
@@ -114,6 +118,7 @@ module.exports = {
             where: { id: userDetails.parentId },
           });
           isSubscriptionPause = parentUser.isSubscriptionPause;
+          signupDate = new Date(Date.parse(parentUser.createdAt));
           whereClause = {
             entityId: parentUser.id,
             roleId: parentUser.role_id,
@@ -121,6 +126,7 @@ module.exports = {
           };
         } else {
           isSubscriptionPause = user.isSubscriptionPause;
+          signupDate = new Date(Date.parse(user.createdAt));
           whereClause = {
             entityId: user.id,
             roleId: user.role_id,
@@ -140,6 +146,17 @@ module.exports = {
           ],
         });
 
+        // One day in milliseconds
+        const oneDay = 1000 * 60 * 60 * 24;
+
+        // Calculating the time difference between two dates
+        const diffInTime = utcDate.getTime() - signupDate.getTime();
+
+        // Calculating the no. of days between two dates
+        const diffInDays = Math.round(diffInTime / oneDay);
+
+        if (diffInDays >= trialPeriod) isTrialPeriodEnd = true;
+
         const languageSetting = await Setting.findOne({
           where: {
             entityId: userDetails.id,
@@ -151,15 +168,15 @@ module.exports = {
           where: { id: languageSetting.content },
         });
 
-      // log new session
-      {
-        const sessionDetails = {};
-        sessionDetails.roleId = user.role_id;
-        sessionDetails.entityId = user.id;
-        sessionDetails.signInAt = sequelize.fn("NOW"); // DataBase dateTime
-        sessionDetails.sessionToken = accessToken;
-        await LogSession.create(sessionDetails); // create new session
-      }
+        // log new session
+        {
+          const sessionDetails = {};
+          sessionDetails.roleId = user.role_id;
+          sessionDetails.entityId = user.id;
+          sessionDetails.signInAt = sequelize.fn("NOW"); // DataBase dateTime
+          sessionDetails.sessionToken = accessToken;
+          await LogSession.create(sessionDetails); // create new session
+        }
 
         delete user.isSubscriptionPause;
         return utils.responseGenerator(StatusCodes.OK, "Login successful", {
@@ -176,6 +193,8 @@ module.exports = {
           parent_role: parentRole,
           password: undefined,
           is_subscription_pause: isSubscriptionPause,
+          session_id: subscribePackageDetails.sessionId,
+          is_trial_period_end: isTrialPeriodEnd,
         });
       } else {
         return utils.responseGenerator(
@@ -192,7 +211,10 @@ module.exports = {
     try {
       let data;
       let subscribePackageDetails,
-        isSubscriptionPause = false;
+        isSubscriptionPause = false,
+        isTrialPeriodEnd = false,
+        signupDate,
+        utcDate = new Date(new Date().toUTCString());
       const student = await Student.findOne({
         attributes: { exclude: ["token"] },
         where: { userName: userName },
@@ -227,6 +249,7 @@ module.exports = {
             where: { id: student.parentId },
           });
           isSubscriptionPause = parentUser.isSubscriptionPause;
+          signupDate = new Date(Date.parse(parentUser.createdAt));
           whereClause = {
             entityId: parentUser.id,
             roleId: parentUser.role_id,
@@ -234,6 +257,7 @@ module.exports = {
           };
         } else {
           isSubscriptionPause = student.isSubscriptionPause;
+          signupDate = new Date(Date.parse(student.createdAt));
           whereClause = {
             entityId: student.id,
             roleId: role.id,
@@ -251,6 +275,17 @@ module.exports = {
           ],
         });
 
+        // One day in milliseconds
+        const oneDay = 1000 * 60 * 60 * 24;
+
+        // Calculating the time difference between two dates
+        const diffInTime = utcDate.getTime() - signupDate.getTime();
+
+        // Calculating the no. of days between two dates
+        const diffInDays = Math.round(diffInTime / oneDay);
+
+        if (diffInDays >= trialPeriod) isTrialPeriodEnd = true;
+
         const languageSetting = await Setting.findOne({
           where: {
             entityId: student.id,
@@ -263,8 +298,8 @@ module.exports = {
           where: { id: languageSetting.content },
         });
 
-       // log new session
-       {
+        // log new session
+        {
           const sessionDetails = {};
           sessionDetails.roleId = role.id;
           sessionDetails.entityId = student.id;
@@ -290,6 +325,8 @@ module.exports = {
           subscribeId: subscribePackageDetails.id,
           priceId: subscribePackageDetails.subscription_package.priceId,
           is_subscription_pause: isSubscriptionPause,
+          session_id: subscribePackageDetails.sessionId,
+          is_trial_period_end: isTrialPeriodEnd,
         });
       } else {
         return utils.responseGenerator(
@@ -456,57 +493,56 @@ module.exports = {
     }
   },
 
-
   topActiveSessionTeachers: async (req) => {
     try {
       const filter = [];
       if (req.query.duration) {
         var today = new Date();
         var priorDate = new Date();
-         if (req.query.duration == "week")
-           filter.createdAt = {
-             [Op.between]: [
-               new Date(priorDate.setDate(priorDate.getDate() - 7)),
-               today,
-             ],
-           };
-         if (req.query.duration == "month")
+        if (req.query.duration == "week")
           filter.createdAt = {
-             [Op.between]: [
+            [Op.between]: [
+              new Date(priorDate.setDate(priorDate.getDate() - 7)),
+              today,
+            ],
+          };
+        if (req.query.duration == "month")
+          filter.createdAt = {
+            [Op.between]: [
               new Date(priorDate.setDate(priorDate.getDate() - 30)),
-               today,
-             ],
-           };
-         if (req.query.duration == "quarter")
-           filter.createdAt = {
-             [Op.between]: [
+              today,
+            ],
+          };
+        if (req.query.duration == "quarter")
+          filter.createdAt = {
+            [Op.between]: [
               new Date(priorDate.setDate(priorDate.getDate() - 120)),
-               today,
-             ],
-           };
-         if (req.query.duration == "year")
-           filter.createdAt = {
-             [Op.between]: [
-               new Date(priorDate.setDate(priorDate.getDate() - 365)),
-               today,
-             ],
-           };
-       }
+              today,
+            ],
+          };
+        if (req.query.duration == "year")
+          filter.createdAt = {
+            [Op.between]: [
+              new Date(priorDate.setDate(priorDate.getDate() - 365)),
+              today,
+            ],
+          };
+      }
 
-       let role=await Role.findOne({
-        where:{
-          title:"Teacher"
-        }
-      })
-      
-     let details = await LogSession.findAndCountAll({
-       attributes: ["session_mins"],
-       where:{
-         entity_id : req.query.entityId,
-         role_id : role.id,
-         created_at:filter.createdAt
-       }
-     });
+      let role = await Role.findOne({
+        where: {
+          title: "Teacher",
+        },
+      });
+
+      let details = await LogSession.findAndCountAll({
+        attributes: ["session_mins"],
+        where: {
+          entity_id: req.query.entityId,
+          role_id: role.id,
+          created_at: filter.createdAt,
+        },
+      });
 
       return utils.responseGenerator(
         StatusCodes.OK,
@@ -523,70 +559,65 @@ module.exports = {
       if (req.query.duration) {
         var today = new Date();
         var priorDate = new Date();
-         if (req.query.duration == "week")
-           filter.createdAt = {
-             [Op.between]: [
-               new Date(priorDate.setDate(priorDate.getDate() - 7)),
-               today,
-             ],
-           };
-         if (req.query.duration == "month")
+        if (req.query.duration == "week")
           filter.createdAt = {
-             [Op.between]: [
+            [Op.between]: [
+              new Date(priorDate.setDate(priorDate.getDate() - 7)),
+              today,
+            ],
+          };
+        if (req.query.duration == "month")
+          filter.createdAt = {
+            [Op.between]: [
               new Date(priorDate.setDate(priorDate.getDate() - 30)),
-               today,
-             ],
-           };
-         if (req.query.duration == "quarter")
-           filter.createdAt = {
-             [Op.between]: [
+              today,
+            ],
+          };
+        if (req.query.duration == "quarter")
+          filter.createdAt = {
+            [Op.between]: [
               new Date(priorDate.setDate(priorDate.getDate() - 120)),
-               today,
-             ],
-           };
-         if (req.query.duration == "year")
-           filter.createdAt = {
-             [Op.between]: [
-               new Date(priorDate.setDate(priorDate.getDate() - 365)),
-               today,
-             ],
-           };
-       }
+              today,
+            ],
+          };
+        if (req.query.duration == "year")
+          filter.createdAt = {
+            [Op.between]: [
+              new Date(priorDate.setDate(priorDate.getDate() - 365)),
+              today,
+            ],
+          };
+      }
 
-       let role=await Role.findOne({
-         where:{
-           title:"Student"
-         }
-       })
+      let role = await Role.findOne({
+        where: {
+          title: "Student",
+        },
+      });
 
       let details = await LogSession.findAndCountAll({
         attributes: ["session_mins"],
-        where:{
-          entity_id : req.query.entityId,
-          role_id : role.id,
-          created_at:filter.createdAt
-        }
+        where: {
+          entity_id: req.query.entityId,
+          role_id: role.id,
+          created_at: filter.createdAt,
+        },
       });
-        if(details)
-          {
-            return utils.responseGenerator(
-              StatusCodes.OK,
-              "Top active students session fetched successully",
-              details
-            );
-          }
-          else
-          {
-            return utils.responseGenerator(
-              StatusCodes.NOT_FOUND,
-              "Session not exist"
-            );
-          }
-    
+      if (details) {
+        return utils.responseGenerator(
+          StatusCodes.OK,
+          "Top active students session fetched successully",
+          details
+        );
+      } else {
+        return utils.responseGenerator(
+          StatusCodes.NOT_FOUND,
+          "Session not exist"
+        );
+      }
     } catch (err) {
-      console.log(err)
+      console.log(err);
       throw err;
     }
   },
-
 };

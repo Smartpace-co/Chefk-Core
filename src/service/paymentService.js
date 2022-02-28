@@ -18,7 +18,7 @@ module.exports = {
       const { subscribeId, customerId, priceId } = reqBody;
 
       const subscribeDetails = await SubscribePackage.findOne({
-        attributes: ["packageId", "sessionId"],
+        attributes: ["packageId", "sessionId", "subscriptionEndDate"],
         where: { id: subscribeId },
         include: [
           {
@@ -27,13 +27,6 @@ module.exports = {
           },
         ],
       });
-
-      if (subscribeDetails.sessionId)
-        return utils.responseGenerator(
-          StatusCodes.OK,
-          "Session created successfully",
-          subscribeDetails.sessionId
-        );
 
       const packageDetails = subscribeDetails.subscription_package;
       const packageAmount = Number(packageDetails.price);
@@ -59,6 +52,20 @@ module.exports = {
         subscribeId,
         priceId
       );
+
+      if (subscribeDetails.sessionId && subscribeDetails.subscriptionEndDate) {
+        await SubscribePackage.update(
+          {
+            sessionId: session.id,
+          },
+          { where: { id: subscribeId } }
+        );
+        return utils.responseGenerator(
+          StatusCodes.OK,
+          "Session created successfully",
+          session.id
+        );
+      }
 
       let currentYear = new Date().getFullYear(),
         // subscriptionStartDate = new Date(),
@@ -200,7 +207,7 @@ module.exports = {
     } catch (err) {
       console.log(err);
     }*/
-      try{
+    try {
       const order = [];
       const orderItem = ["id"];
       const sortOrder = "desc";

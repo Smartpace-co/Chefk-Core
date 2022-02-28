@@ -69,6 +69,8 @@ module.exports = {
               "storyTime",
               "status",
             ],
+            where: { status: true, isDeleted: false },
+            required: true,
             include: [
               {
                 model: TeacherInstruction,
@@ -98,8 +100,10 @@ module.exports = {
               "recipeImage",
               "alternativeName",
               "estimatedMakeTime",
+              "estimatedTimeForPreparation",
               "countryId",
             ],
+            required: true,
             include: [
               {
                 model: Country,
@@ -123,6 +127,34 @@ module.exports = {
         // ...pagging,
       });
 
+      // calculating lesson time
+      const data=[];
+      for (row of rows) {
+        row = row.toJSON();
+        let lessonTime = 0;
+        //recipe time
+        lessonTime += row.recipe.estimatedMakeTime ? row.recipe.estimatedMakeTime : 0;
+        //preperation time
+        lessonTime += row.recipe.estimatedTimeForPreparation ? row.recipe.estimatedTimeForPreparation : 0;
+        if (row.customSetting) {
+          const customSetting = row.customSetting.content;
+          //cooking time
+          if (customSetting[0].status) lessonTime += customSetting[0].time ? customSetting[0].time : 0;
+          //technique time
+          for ( item of customSetting[0].cooking) if (item.status) lessonTime += item.estimatedTime ? item.estimatedTime : 0;
+          //story time
+          if (customSetting[1].status) lessonTime += customSetting[1].time ? customSetting[1].time : 0;
+          //sensory and experiment time
+          if (customSetting[2].status) lessonTime += customSetting[2].time ? customSetting[2].time : 0;
+          //assessment time
+          if (customSetting[3].status) lessonTime += customSetting[3].time ? customSetting[3].time : 0;
+        }
+        row.lessonTime = lessonTime;
+        data.push(row);
+      }
+        // recipetime+ settingsvales+ preperationtime
+      //
+
       // Add bookmark key
       // rows.map(obj => {
       //   return obj.dataValues.lesson.setDataValue('bookmarkLesson', obj.lesson.bookmarkLesson.length ? obj.lesson.bookmarkLesson.map(newObj => newObj.isBookmarked)[0] : false);
@@ -131,7 +163,7 @@ module.exports = {
       return utils.responseGenerator(
         StatusCodes.OK,
         "Assigned lessons fetched",
-        { rows }
+        { rows : data }
       );
     } catch (err) {
       throw err;

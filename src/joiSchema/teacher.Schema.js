@@ -3,9 +3,10 @@ const Joi = require("joi");
 
 //create
 const create = Joi.object({
-  district_id: Joi.number(),
-  school_id: Joi.number(),
+  district_id: Joi.number().allow(null),
+  school_id: Joi.number().allow(null),
   custom_district_name: Joi.string().max(45),
+  custom_school_name: Joi.string().max(45),
   first_name: Joi.string().max(45).required(),
   last_name: Joi.string().max(45).required(),
   email: Joi.string().max(45).required(),
@@ -27,15 +28,18 @@ const create = Joi.object({
 });
 //file
 const file = Joi.object({
-  district_id: Joi.number().required(),
-  role_id: Joi.number().required(),
+  district_id: Joi.number(),
+  school_id: Joi.number(),
+  role_id: Joi.number(),
   file_name: Joi.string().required(),
   parent_id: Joi.number()
 });
 //update
 const update = Joi.object({
-  district_id: Joi.number(),
-  school_id: Joi.number(),
+  district_id: Joi.number().allow(null),
+  school_id: Joi.number().allow(null),
+  custom_district_name: Joi.string().max(45),
+  custom_school_name: Joi.string().max(45),
   first_name: Joi.string().max(45),
   last_name: Joi.string().max(45),
   email: Joi.string().max(45),

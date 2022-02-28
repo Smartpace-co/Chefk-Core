@@ -45,6 +45,20 @@ module.exports = {
       throw err;
     }
   },
+  phoneVerifierFormater: (number) => {
+    try {
+      if (parseInt(number)) {
+        let match = number.toString().match(/^\+?\d{6,18}$/);
+        if (match) {
+          return number;
+        }
+      }
+      return null;
+    } catch (err) {
+      console.log("Error ==> ", err);
+      throw err;
+    }
+  },
   sendEmail: async (email, templateId, templateData) => {
     try {
       sgMail.setApiKey(apiKey);

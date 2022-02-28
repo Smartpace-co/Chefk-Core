@@ -183,8 +183,6 @@ async function checkStudentReport(assignLessonId, studentId, studentDetails) {
         const { isEnable, roleId } = await modelHelper.getSetting(notifyTo.user_id, false, listItem.settingKey);
         if (isEnable) {
           const studentName = `${studentDetails.firstName} ${studentDetails.lastName}`;
-          console.log(notifyTo.user_id)
-          console.log(roleId)
 
           await notificationService.createNotifications(notifyTo.user_id, roleId, null, "student_performance_alert", {
             entity: studentName,
@@ -194,11 +192,8 @@ async function checkStudentReport(assignLessonId, studentId, studentDetails) {
 
           //send email to teacher
           if (listItem.DB == Teacher ||listItem.DB == School ||listItem.DB == District) {
-            console.log(listItem.db)
-            const userData = await User.findOne({ attributes: ["id", "email", "role_id"], where: { id: listItem.entityId, status: true } });
-            console.log(userData)
-            const { isEnable } = await modelHelper.getSetting(userData.id, false, "notiReceiveAllNotificationsAsEmails");
-            console.log(isEnable)
+            const userData = await User.findOne({ attributes: ["id", "email", "role_id"], where: { id: notifyTo.user_id, status: true } });
+            const { isEnable } = await modelHelper.getSetting(notifyTo.user_id, false, "notiReceiveAllNotificationsAsEmails");
 
             if (isEnable) {
               let templateData = {
@@ -342,8 +337,9 @@ module.exports = {
               if (!listItem.entityId) continue;
               const notifyTo = listItem.DB != Teacher? (await listItem.DB.findOne({ where: { id: listItem.entityId } })).user_id:listItem.entityId;
               const { isEnable, roleId } = await modelHelper.getSetting(notifyTo, false, listItem.settingKey);
+              let studentName;
               if (isEnable) {
-                const studentName = `${studentDetails.firstName} ${studentDetails.lastName}`;
+                studentName = `${studentDetails.firstName} ${studentDetails.lastName}`;
                 await notificationService.createNotifications(notifyTo, roleId, user_id, "assignment_completed", {
                   entity: studentName,
                   assignmentTitle,
@@ -351,8 +347,8 @@ module.exports = {
               }
 
               if (listItem.DB == School ||listItem.DB == District) {
-                const userData = await User.findOne({ attributes: ["id", "email", "role_id"], where: { id: listItem.entityId, status: true } });
-                const { isEnable } = await modelHelper.getSetting(userData.id, false, "notiReceiveAllNotificationsAsEmails");
+                const userData = await User.findOne({ attributes: ["id", "email", "role_id"], where: { id: notifyTo, status: true } });
+                const { isEnable } = await modelHelper.getSetting(notifyTo, false, "notiReceiveAllNotificationsAsEmails");
                 if (isEnable) {
                   let templateData = {
                     subject: "Notification",

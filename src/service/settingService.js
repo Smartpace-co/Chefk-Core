@@ -47,7 +47,7 @@ module.exports = {
     try {
       const { settings } = reqBody;
       const dataArray = settings.map((setting) => {
-        return { ...setting, updatedBy: user_id };
+        return { ...setting, updatedBy: !isStudent ? user_id : null };
       });
       const setting = await Setting.bulkCreate(dataArray, {
         updateOnDuplicate: ["isEnable", "content", "updatedBy"],

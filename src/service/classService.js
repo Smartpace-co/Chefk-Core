@@ -5,9 +5,11 @@ let Student = require("../models").students;
 let Class_standard = require("../models").class_standards;
 let Class_teacher = require("../models").class_teachers;
 let Class_student = require("../models").class_students;
+let Allergen = require("../models").allergens;
 let ClassGroup = require("../models").class_groups;
 let GroupStudents = require("../models").group_students;
 let GroupColor = require("../models").group_colors;
+let Role = require("../models/").roles;
 let utils = require("../helpers/utils");
 let modelHelper = require("../helpers/modelHelper");
 let { sequelize } = require("../models/index");
@@ -22,6 +24,7 @@ const Op = Sequelize.Op;
 let SubscriptionPackage = require("../models/").subscription_packages;
 let SubscribePackage = require("../models/").subscribe_packages;
 let notificationService = require("../service/notificationService");
+let generalTemplateId = config.sendgrid.general_template_id;
 
 module.exports = {
   checkClassNameConflict: async (name) => {
@@ -61,7 +64,7 @@ module.exports = {
       const classStudents = await Class_student.bulkCreate(processedClassStudents, { transaction: t });
 
       await modelHelper.addSettings(savedClass.id, null, classSettings, t);
-    
+
       const teacherEmailIds = (
         await User.findAll({
           attributes: ["email"],
@@ -77,7 +80,7 @@ module.exports = {
         return teacher.email;
       });
 
-    
+
       await t.commit();
 
 
@@ -88,6 +91,32 @@ module.exports = {
       };
       // send email non blocking
       utils.sendEmail(teacherEmailIds, classinvitationTemplateId, templateData);
+
+      // email and notify the students
+        const students = await Student.findAll({
+          attributes: ["id", "contactPersonEmail", "firstName", "lastName"],
+          where: { id: reqBody.assigned_student_ids },
+        });
+        const roleId = (await Role.findOne({ where: { title: "Student" } })).id;
+
+        if(students.length>0){
+          for (student of students){
+            let templateData = {
+              subject: "Added to class",
+              header: "You have been added to a class",
+              content: `Class Name: ${savedClass.title}, Student Name:${student.firstName} ${student.lastName}`,
+            };
+            utils.sendEmail(student.contactPersonEmail, generalTemplateId, templateData);
+            await notificationService.createNotifications(
+              student.id,
+              roleId,
+              user_id,
+              "added_to_class",
+              { className: savedClass.title}
+            );
+          }
+        }
+
       return utils.responseGenerator(StatusCodes.OK, "Class created ", {
         id: savedClass.id,
         ...reqBody,
@@ -132,6 +161,7 @@ module.exports = {
       //filter
       const filter = { deleted_at: null };
       req.query.school_id ? (filter.school_id = req.query.school_id) : null;
+      req.query.existInSchool === "false" ? filter.school_id = null : null; 
       req.query.grade_id ? (filter.grade_id = req.query.grade_id) : null;
       req.query.status ? (filter.status = req.query.status) : null;
       if (req.query.archive === "1") filter.archived_at = { [Op.not]: null };
@@ -155,25 +185,16 @@ module.exports = {
       if (isStudent)
         filter.id = (await Class_student.findAll({ where: { studentId: user_id } })).map((item) => item.classId);
       else {
-        let accessId;
-        const { entityId, entityType, isSubUser, parentId, rootParentId } = await modelHelper.entityDetails(user_id);
-        if (entityType == "district" && !isSubUser) accessId = user_id;
-        else if (entityType == "district" && isSubUser) accessId = parentId;
-        else if (entityType == "school" && !isSubUser) {
-          accessId = rootParentId ? rootParentId : user_id;
-          rootParentId ? filter.school_id = entityId : null;
-        }
-        else if (entityType == "school" && isSubUser) {
-          accessId = rootParentId ? rootParentId : parentId;
-          rootParentId ? filter.school_id = entityId : null;
-        }
-        else if (entityType == "teacher")
+        const { entityId, entityType, isSubUser, parentEntityId } = await modelHelper.entityDetails(user_id);
+        if (entityType == "district" && !isSubUser) filter.district_id = entityId;
+        else if (entityType == "district" && isSubUser) filter.district_id = parentEntityId;
+        else if (entityType == "school" && !isSubUser) filter.school_id = entityId;
+        else if (entityType == "school" && isSubUser) filter.school_id = parentEntityId;
+        else if (entityType == "teacher") {
           filter.id = (await Class_teacher.findAll({ where: { teacher_id: entityId } })).map((item) => item.class_id);
-        else accessId = user_id;
-
-        if (!filter.id) {
-          const ids = await modelHelper.accessibleIds(accessId);
-          filter.createdBy = [accessId, ...ids];
+        } else {
+          const ids = await modelHelper.accessibleIds(user_id);
+          filter.createdBy = [user_id, ...ids];
         }
       }
       if (req.query.duration) {
@@ -250,27 +271,19 @@ module.exports = {
         const count = await Class_student.count({ where: { studentId: user_id, classId: param_id } });
         if (!count) return utils.responseGenerator(StatusCodes.BAD_REQUEST, "Class does not exist");
       } else {
-        let accessId;
-        const { entityId, entityType, isSubUser, parentId, rootParentId } = await modelHelper.entityDetails(user_id);
-        if (entityType == "district" && !isSubUser) accessId = user_id;
-        else if (entityType == "district" && isSubUser) accessId = parentId;
-        else if (entityType == "school" && !isSubUser) {
-          accessId = rootParentId ? rootParentId : user_id;
-          rootParentId ? filter.school_id = entityId : null;
-        }
-        else if (entityType == "school" && isSubUser) {
-          accessId = rootParentId ? rootParentId : parentId;
-          rootParentId ? filter.school_id = entityId : null;
-        }
+        const { entityId, entityType, isSubUser, parentEntityId } = await modelHelper.entityDetails(user_id);
+        if (entityType == "district" && !isSubUser) filter.district_id = entityId;
+        else if (entityType == "district" && isSubUser) filter.district_id = parentEntityId;
+        else if (entityType == "school" && !isSubUser) filter.school_id = entityId;
+        else if (entityType == "school" && isSubUser) filter.school_id = parentEntityId;
         else if (entityType == "teacher") {
           const count = await Class_teacher.count({ where: { teacher_id: entityId, class_id: param_id } });
           if (!count) return utils.responseGenerator(StatusCodes.BAD_REQUEST, "Class does not exist");
-        } else accessId = user_id;
-        if (entityType != "teacher") {
-          const ids = await modelHelper.accessibleIds(accessId);
-          filter.createdBy = [accessId, ...ids];
-        }
+        } else {
+          const ids = await modelHelper.accessibleIds(user_id);
+          filter.createdBy = [user_id, ...ids];
       }
+    }
       const classDetails = await Class.findOne({
         where: filter,
         attributes: { exclude: ["grade_id"] },
@@ -280,7 +293,17 @@ module.exports = {
           {
             model: Class_standard,
             required: false,
-            include: ["standard"],
+            include: [
+              {
+                association: "standard",
+                include: [
+                  {
+                    association: "subject",
+                    attributes: ["id", "subjectTitle"],
+                  },
+                ],
+              },
+            ],
           },
           {
             model: Class_teacher,
@@ -298,6 +321,16 @@ module.exports = {
                 },
                 include: [
                   "relation",
+                  {
+                    association: "allergens",
+                    attributes: ["id"],
+                    required: false,
+                    include: [
+                      {
+                        model: Allergen,
+                      },
+                    ],
+                  },
                   {
                     model: GroupStudents,
                     attributes: ["id", "classId", "classGroupId", "studentId"],
@@ -343,27 +376,19 @@ module.exports = {
     try {
       const filter = { id: param_id, deleted_at: null };
       //accessibleIds of this user
-      let accessId;
-      const { entityId, entityType, isSubUser, parentId, rootParentId } = await modelHelper.entityDetails(user_id);
-      if (entityType == "district" && !isSubUser) accessId = user_id;
-      else if (entityType == "district" && isSubUser) accessId = parentId;
-      else if (entityType == "school" && !isSubUser) {
-        accessId = rootParentId ? rootParentId : user_id;
-        rootParentId ? filter.school_id = entityId : null;
-      }
-      else if (entityType == "school" && isSubUser) {
-        accessId = rootParentId ? rootParentId : parentId;
-        rootParentId ? filter.school_id = entityId : null;
-      }
+      const { entityId, entityType, isSubUser } = await modelHelper.entityDetails(user_id);
+      if (entityType == "district" && !isSubUser) filter.district_id = entityId;
+      else if (entityType == "district" && isSubUser) filter.district_id = parentEntityId;
+      else if (entityType == "school" && !isSubUser) filter.school_id = entityId;
+      else if (entityType == "school" && isSubUser) filter.school_id = parentEntityId;
       else if (entityType == "teacher") {
         const count = await Class_teacher.count({
           where: { teacher_id: entityId, class_id: param_id },
         });
         if (!count) return utils.responseGenerator(StatusCodes.BAD_REQUEST, "Class does not exist");
-      } else accessId = user_id;
-      if (entityType != "teacher") {
-        const ids = await modelHelper.accessibleIds(accessId);
-        filter.createdBy = [accessId, ...ids];
+      } else {
+        const ids = await modelHelper.accessibleIds(user_id);
+        filter.createdBy = [user_id, ...ids];
       }
       const classDetails = await Class.findOne({
         where: filter,
@@ -374,6 +399,7 @@ module.exports = {
       const {
         title,
         description,
+        school_id,
         // grade, //removed grade by b
         assigned_teacher_ids,
         assigned_standard_ids,
@@ -384,7 +410,7 @@ module.exports = {
 
       classDetails.title = title ? title : classDetails.title;
       classDetails.description = description ? description : classDetails.description;
-      // classDetails.grade = grade ? grade : classDetails.grade;
+      classDetails.school_id = school_id ? school_id : classDetails.school_id;
       classDetails.grade_id = reqBody.grade_id;
 
       classDetails.number_of_students = number_of_students ? number_of_students : classDetails.number_of_students;
@@ -408,8 +434,31 @@ module.exports = {
         const processedClassStudents = reqBody.assigned_student_ids.map((student_id) => {
           return { class_id: classDetails.id, student_id, createdBy: user_id, updatedBy: user_id };
         });
+        const oldStudentIds = (await Class_student.findAll({ where: { classId: param_id } })).map(i => i.studentId);
+        const newStudentIds = assigned_student_ids.filter(id => !oldStudentIds.includes(id));
+        const newStudents = await Student.findAll({ attributes: ["id", "contactPersonEmail", "firstName", "lastName"], where: {id: newStudentIds}});
         await Class_student.destroy({ where: { class_id: param_id } });
         await Class_student.bulkCreate(processedClassStudents);
+      
+        // email and notify the students
+        const roleId = (await Role.findOne({ where: { title: "Student" } })).id;
+        if(newStudents.length>0){
+          for (student of newStudents){
+            let templateData = {
+              subject: "Added to class",
+              header: "You have been added to a class",
+              content: `Class Name: ${classDetails.title}, Student Name:${student.firstName} ${student.lastName}`,
+            };
+            utils.sendEmail(student.contactPersonEmail, generalTemplateId, templateData);
+            await notificationService.createNotifications(
+              student.id,
+              roleId,
+              user_id,
+              "added_to_class",
+              { className: classDetails.title}
+            );
+          }
+        }
       }
 
       return utils.responseGenerator(StatusCodes.OK, "Class details updated successfully", {
@@ -435,7 +484,7 @@ module.exports = {
           id: param_id,
         },
       });
-      return utils.responseGenerator(StatusCodes.OK, "Class archieved successfully", {
+      return utils.responseGenerator(StatusCodes.OK, "Class archived successfully", {
         result,
       });
     } catch (err) {
@@ -456,7 +505,7 @@ module.exports = {
           id: param_id,
         },
       });
-      return utils.responseGenerator(StatusCodes.OK, "Class unarchieved successfully", {
+      return utils.responseGenerator(StatusCodes.OK, "Class unarchived successfully", {
         result,
       });
     } catch (err) {

@@ -692,7 +692,7 @@ module.exports = {
    *       type: string
    *     responses:
    *       200:
-   *         description: Class archieved successfully.
+   *         description: Class archived successfully.
    *         content:
    *           application/json:
    *             schema:
@@ -768,7 +768,7 @@ module.exports = {
    *       type: string
    *     responses:
    *       200:
-   *         description: Class unarchieved successfully.
+   *         description: Class unarchived successfully.
    *         content:
    *           application/json:
    *             schema:

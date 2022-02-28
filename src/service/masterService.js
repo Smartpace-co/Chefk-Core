@@ -20,7 +20,6 @@ const Ingredient = require("../models").ingredients;
 const CulinaryTechnique = require("../models").culinary_techniques;
 const Nutrients = require("../models").nutrients;
 
-
 const { Op } = require("sequelize");
 let utils = require("../helpers/utils");
 let { StatusCodes } = require("http-status-codes");
@@ -61,9 +60,9 @@ module.exports = {
   },
   getAllRelations: async (req) => {
     try {
-      const filter = {};
-      req.query.type ? (filter.type = req.query.type) : null;
-      const relations = await Relation.findAll({ where: filter });
+      // const filter = {};
+      // req.query.type ? (filter.type = req.query.type) : null;
+      const relations = await Relation.findAll({ /*where: filter*/ });
       return utils.responseGenerator(
         StatusCodes.OK,
         "Relations fetched",
@@ -313,19 +312,41 @@ module.exports = {
   getAllFiltersList: async (req) => {
     try {
       //fitler
-      const grades = await Grade.findAll({});
-      const standards = await Standard.findAll({});
-      const languages = await Language.findAll({});
-      const countries = await Country.findAll({});
-      const ingredients = await Ingredient.findAll({});
-      const culineryTechniques = await CulinaryTechnique.findAll({});
-      const cookingDuration = require("../constants/cookingDuration").cookingDuration;
-      const nutrients = await Nutrients.findAll({});
+      const grades = await Grade.findAll({ order: [["grade", "ASC"]] });
+      const standards = await Standard.findAll({
+        order: [["standardTitle", "ASC"]],
+      });
+      const languages = await Language.findAll({
+        order: [["language", "ASC"]],
+      });
+      const countries = await Country.findAll({
+        order: [["countryName", "ASC"]],
+      });
+      const ingredients = await Ingredient.findAll({
+        order: [["ingredientTitle", "ASC"]],
+      });
+      const culineryTechniques = await CulinaryTechnique.findAll({
+        order: [["culinaryTechniqueTitle", "ASC"]],
+      });
+      const cookingDuration =
+        require("../constants/cookingDuration").cookingDuration;
+      const nutrients = await Nutrients.findAll({
+        order: [["nutrientTitle", "ASC"]],
+      });
 
       return utils.responseGenerator(
         StatusCodes.OK,
         "Filters List fetched successfully",
-        { grades, standards, languages, countries, ingredients, culineryTechniques, cookingDuration, nutrients }
+        {
+          grades,
+          standards,
+          languages,
+          countries,
+          ingredients,
+          culineryTechniques,
+          cookingDuration,
+          nutrients,
+        }
       );
     } catch (err) {
       throw err;

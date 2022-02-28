@@ -22,8 +22,9 @@ let { StatusCodes } = require("http-status-codes");
 require("dotenv").config();
 const env = process.env.NODE_ENV || "development";
 const config = require("../../config/config")[env];
-const resetPasswordPath = config.reset_password_path;
-let resetPasswordTemplateId = config.sendgrid.reset_password_template_id;
+const generatePasswordPath = config.generate_password_path;
+const file_upload_location = config.file_upload_location;
+const generatePasswordTemplateId = config.sendgrid.generate_password_template_id;
 const Sequelize = require("sequelize");
 const Op = Sequelize.Op;
 let notificationService = require("../service/notificationService");
@@ -38,7 +39,6 @@ async function createTr(reqBody, t) {
       reqBody.email,
       reqBody.first_name
     );
-
     const savedUser = await User.create(
       {
         ...reqBody,
@@ -104,12 +104,12 @@ async function createTr(reqBody, t) {
       };
     }
 
-    let resetPasswordLink = `${resetPasswordPath}?token=${accessToken}`;
+    let generatePasswordLink = `${generatePasswordPath}?token=${accessToken}`;
     let templateData = {
-      reset_link: resetPasswordLink,
+      generate_password_link: generatePasswordLink,
     };
 
-    utils.sendEmail(reqBody.email, resetPasswordTemplateId, templateData);
+    utils.sendEmail(reqBody.email, generatePasswordTemplateId, templateData);
   
     return data;
   } catch (err) {
@@ -206,7 +206,7 @@ module.exports = {
       }
       //process file
       const filePath =
-        process.env.FILE_UPLOAD_LOCATION + "/" + reqBody.file_name;
+      file_upload_location + "/" + reqBody.file_name;
       const { data, error } = fileParser.fileParser(filePath);
       if (error)
         return utils.responseGenerator(
@@ -242,7 +242,8 @@ module.exports = {
           )
             throw "missing info; requiredFeild:first_name, last_name, email, phone_number, gender, status; optionalFeilds: school ";
           if (!utils.emailValidation(email)) throw "invalid email";
-          if (!parseInt(phone_number)) throw "inavlid phone_number";
+          const formatedNumber = utils.phoneVerifierFormater(phone_number);
+          if (!formatedNumber) throw "inavlid phone_number"; else row.phone_number = formatedNumber;
           if (school) {
             const schoolDetails = await School.findOne({
               where: { name: school, district_id: district_id },
@@ -260,7 +261,7 @@ module.exports = {
             status.toLowerCase() != "inactive"
           )
             throw "invalid status";
-          status.toLowerCase == "active"
+          status.toLowerCase() == "active"
             ? (row.status = true)
             : (row.status = false); // finetunning status
           const filter = {};
@@ -342,7 +343,7 @@ module.exports = {
       req.query.status ? (filter1.status = req.query.status) : null;
       const filter2 = {};
       req.query.school_id ? (filter2.school_id = req.query.school_id) : null;
-
+      req.query.existInSchool === "false" ? filter2.school_id = null : null; 
       if (req.query.duration) {
         var today = new Date();
         var priorDate = new Date();
@@ -398,22 +399,15 @@ module.exports = {
       parseInt(page_size) ? (pagging.limit = parseInt(page_size)) : null;
 
       //accessibleIds of this user
-      let accessId;
-      const { entityId, entityType, isSubUser, parentId, rootParentId } = await modelHelper.entityDetails(user_id);
-      if (entityType == "district" && !isSubUser) accessId = user_id;
-      else if (entityType == "district" && isSubUser) accessId = parentId;
-      else if (entityType == "school" && !isSubUser){
-       accessId = rootParentId ? rootParentId: user_id;
-       rootParentId ? filter2.school_id = entityId: null; 
-      }
-      else if (entityType == "school" && isSubUser){
-       accessId = rootParentId? rootParentId: parentId;
-       rootParentId ? filter2.school_id = entityId: null; 
-      }
-      else accessId = user_id;
-      const ids = await modelHelper.accessibleIds(accessId);
-      filter1.createdBy = [accessId, ...ids];
-      
+      const { entityId, entityType, isSubUser, parentEntityId } = await modelHelper.entityDetails(user_id);
+        if (entityType == "district" && !isSubUser) filter2.district_id = entityId;
+        else if (entityType == "district" && isSubUser) filter2.district_id = parentEntityId;
+        else if (entityType == "school" && !isSubUser) filter2.school_id = entityId;
+        else if (entityType == "school" && isSubUser) filter2.school_id = parentEntityId;
+        else {
+          const ids = await modelHelper.accessibleIds(user_id);
+          filter1.createdBy = [user_id, ...ids];
+        }
       const { count, rows } = await User.findAndCountAll({
         where: { ...filter1 },
         attributes: { exclude: ["password", "token"] },
@@ -445,28 +439,19 @@ module.exports = {
   },
   getTeacher: async (param_id, user_id) => {
     try {
-      const filter1 = {};
+      const filter1 = { id : param_id };
       const filter2 = {};
       if (param_id != user_id) {
         //accessibleIds of this user
-        let accessId;
-        const { entityId, entityType, isSubUser, parentId, rootParentId } = await modelHelper.entityDetails(user_id);
-        if (entityType == "district" && !isSubUser) accessId = user_id;
-        else if (entityType == "district" && isSubUser) accessId = parentId;
-        else if (entityType == "school" && !isSubUser){
-         accessId = rootParentId ? rootParentId: user_id;
-         rootParentId ? filter2.school_id = entityId: null; 
+        const { entityId, entityType, isSubUser, parentEntityId } = await modelHelper.entityDetails(user_id);
+        if (entityType == "district" && !isSubUser) filter2.district_id = entityId;
+        else if (entityType == "district" && isSubUser) filter2.district_id = parentEntityId;
+        else if (entityType == "school" && !isSubUser) filter2.school_id = entityId;
+        else if (entityType == "school" && isSubUser) filter2.school_id = parentEntityId;
+        else {
+          const ids = await modelHelper.accessibleIds(user_id);
+          filter1.createdBy = [user_id, ...ids];
         }
-        else if (entityType == "school" && isSubUser){
-         accessId = rootParentId? rootParentId: parentId;
-         rootParentId ? filter2.school_id = entityId: null; 
-        }
-        else accessId = user_id;
-        const ids = await modelHelper.accessibleIds(accessId);
-        filter1.createdBy = [accessId, ...ids];
-        filter1.id = param_id;
-      } else {
-        filter1.id = param_id;
       }
       const teacherDetails = await User.findOne({
         where: { ...filter1 },
@@ -507,21 +492,15 @@ module.exports = {
       const filter2 = {};
       if (param_id != user_id) {
         //accessibleIds of this user
-        let accessId;
-        const { entityId, entityType, isSubUser, parentId, rootParentId } = await modelHelper.entityDetails(user_id);
-        if (entityType == "district" && !isSubUser) accessId = user_id;
-        else if (entityType == "district" && isSubUser) accessId = parentId;
-        else if (entityType == "school" && !isSubUser){
-         accessId = rootParentId ? rootParentId: user_id;
-         rootParentId ? filter2.school_id = entityId: null; 
+        const { entityId, entityType, isSubUser, parentEntityId } = await modelHelper.entityDetails(user_id);
+        if (entityType == "district" && !isSubUser) filter2.district_id = entityId;
+        else if (entityType == "district" && isSubUser) filter2.district_id = parentEntityId;
+        else if (entityType == "school" && !isSubUser) filter2.school_id = entityId;
+        else if (entityType == "school" && isSubUser) filter2.school_id = parentEntityId;
+        else {
+          const ids = await modelHelper.accessibleIds(user_id);
+          filter1.createdBy = [user_id, ...ids];
         }
-        else if (entityType == "school" && isSubUser){
-         accessId = rootParentId? rootParentId: parentId;
-         rootParentId ? filter2.school_id = entityId: null; 
-        }
-        else accessId = user_id;
-        const ids = await modelHelper.accessibleIds(accessId);
-        filter1.createdBy = [accessId, ...ids];
       }
       reqBody.updatedBy = user_id;
       const data = await updateTr(reqBody, param_id, filter1, filter2);

@@ -103,11 +103,14 @@ async function getRecipe(filter) {
 async function getLesson(filter) {
   try {
     const data = await Lesson.findOne({
-      where: filter,
+      where: {...filter, status: true, isDeleted: false},
       include: [
         "grade",
+        { association: "recipe", required: true, attributes: [] },
+        { association: "links", separate: true },
         { association: "safetySteps", separate: true },
         { association: "cleanupSteps", separate: true },
+        { association: "chefIntroductions", separate: true },
         {
           association: "experiment",
           include: [
@@ -411,6 +414,7 @@ module.exports = {
         standards: [],
         nutrients: [],
       };
+      req.query.isFeatured === 'true' ? filter.isFeatured = true: null;
 
       if (req.query.filters) {
         lessonfilter = JSON.parse(req.query.filters);
@@ -440,17 +444,14 @@ module.exports = {
 
       let durationJson = require("../constants/cookingDuration").cookingDuration;
       let cookingDurations = [];
-      for (let elm of durationJson) {
         for (let filterId of lessonfilter.cookingTime) {
-          if (elm.id === filterId) {
-            cookingDurations.push({ from: elm.from, to: elm.to });
-          }
+         const obj = durationJson.find(item => item.id === filterId)
+            cookingDurations.push( { lessonTime: { [Op.between]: [obj.from, obj.to],} } );
         }
-      }
-
+      let durationCondition = cookingDurations.length? {[Op.or]: cookingDurations}: undefined;
       //pagging
       const { page_size, page_no = 1 } = req.query;
-
+      //fetch lessons
       let lessonData = await Lesson.findAll({
         attributes: [
           "id",
@@ -458,12 +459,14 @@ module.exports = {
           "gradeId",
           "languageId",
           "isFeatured",
+          "lessonTime",
           "createdAt",
           "updatedAt",
           "status",
         ],
-        where: { ...filter, isFeatured: true },
+        where: { ...filter, status: true,  isDeleted: false, ...durationCondition },
         include: [
+          { association: "recipe", required: true, attributes: [] },
           {
             model: Grade,
             attributes: ["id", "grade"],
@@ -479,6 +482,7 @@ module.exports = {
             model: Question,
             attributes: ["id", "transactionId", "status"],
             where: { isDelete: false },
+            required: lessonfilter.standards.length ? true : false,
             include: [
               {
                 model: QuestionStandard,
@@ -492,9 +496,16 @@ module.exports = {
         order: order,
         limit: limit
       });
-
       lessonData = JSON.parse(JSON.stringify(lessonData));
+      //fetch ratings of lessons
+      let lessonRating = await StudentLessonRating.findAll({
+        attributes: [[Sequelize.fn('AVG', Sequelize.col('rating')), "avgRating"], "lessonId"],
+        group: ["lessonId"],
+        where: {lessonId: lessonData.map(obj => obj.id)}
+      });
+      lessonRating = JSON.parse(JSON.stringify(lessonRating));
 
+      //fetch recipes of lessons
       let recipeData = await Recipe.findAll({
         attributes: [
           "id",
@@ -508,44 +519,27 @@ module.exports = {
           "status",
         ],
         where:
-          cookingDurations.length && lessonfilter.seasonal == ""
+           lessonfilter.seasonal === ""
             ? {
               lessonId: { [Op.in]: lessonData.map(obj => obj.id) },
-              [Op.or]: cookingDurations.map((obj) => {
-                return {
-                  estimatedMakeTime: {
-                    [Op.between]: [obj.from, obj.to],
-                  },
-                };
-              }),
             }
-            : cookingDurations.length && lessonfilter.seasonal !== ""
-              ? {
-                [Op.or]: cookingDurations.map((obj) => {
-                  return {
-                    estimatedMakeTime: {
-                      [Op.between]: [obj.from, obj.to],
-                    },
-                  };
-                }),
+            : {
+                lessonId: { [Op.in]: lessonData.map(obj => obj.id) },
                 holiday: lessonfilter.seasonal ? { [Op.not]: null } : { [Op.eq]: null },
-              }
-              : cookingDurations.length == 0 && lessonfilter.seasonal !== ""
-                ? {
-                  holiday: lessonfilter.seasonal ? { [Op.not]: null } : { [Op.eq]: null },
-                }
-                : {},
+              },
 
         include: [
           {
             model: Country,
             attributes: ["id", "countryName"],
+            required : lessonfilter.countries.length ? true : false,
             where: lessonfilter.countries.length ? { id: { [Op.in]: lessonfilter.countries } } : {},
           },
           {
             model: RecipeTechnique,
             as: "recipeTechniques",
             attributes: ["id", "estimatedTime", "culinaryTechniqueId"],
+            required : lessonfilter.culinaryTechniques.length ? true : false,
             where: lessonfilter.culinaryTechniques.length
               ? { culinaryTechniqueId: { [Op.in]: lessonfilter.culinaryTechniques } }
               : {},
@@ -554,6 +548,7 @@ module.exports = {
             model: RecipeIngredient,
             as: "recipeIngredients",
             attributes: ["id", "ingredientId"],
+            required : lessonfilter.ingredients.length ? true : false,
             where: lessonfilter.ingredients.length ? { ingredientId: { [Op.in]: lessonfilter.ingredients } } : {},
             include: [
               {
@@ -575,14 +570,16 @@ module.exports = {
         ],
         order: order,
       });
-
       recipeData = JSON.parse(JSON.stringify(recipeData));
-
+      //data linking
       lessonData = lessonData.map(obj => {
-        return Object.assign(obj, { recipe: recipeData.find(recipeObj => recipeObj.lessonId === obj.id) });
+        let recipe = recipeData.find(recipeObj => recipeObj.lessonId === obj.id); 
+      // binding rating
+      let rating = lessonRating.find(item => item.lessonId == obj.id);
+      obj.rating = rating ? parseFloat(rating.avgRating).toFixed(1): null;
+      return Object.assign(obj, { recipe });
       });
       let rows = lessonData.filter((obj) => obj.recipe);
-
       return utils.responseGenerator(StatusCodes.OK, "Lessons fetched", {
         rows
       });
@@ -623,7 +620,8 @@ module.exports = {
       let topRatedData = await StudentLessonRating.findAll({
         attributes: [[Sequelize.fn('AVG', Sequelize.col('rating')), "avgRating"], "lessonId"],
         group: ["lessonId"],
-        // order: [["rating", "DESC"]],
+        order: [[Sequelize.col('avgRating'), "DESC"]],
+        limit: limit,
       });
 
       topRatedData = JSON.parse(JSON.stringify(topRatedData));
@@ -675,13 +673,11 @@ module.exports = {
 
       let durationJson = require("../constants/cookingDuration").cookingDuration;
       let cookingDurations = [];
-      for (let elm of durationJson) {
-        for (let filterId of lessonfilter.cookingTime) {
-          if (elm.id === filterId) {
-            cookingDurations.push({ from: elm.from, to: elm.to });
-          }
-        }
+      for (let filterId of lessonfilter.cookingTime) {
+        const obj = durationJson.find(item => item.id === filterId)
+        cookingDurations.push( { lessonTime: { [Op.between]: [obj.from, obj.to],} } );
       }
+      let durationCondition = cookingDurations.length? {[Op.or]: cookingDurations}: undefined;
 
       if (topRatedLessonIds.length > 0) {
         let lessonData = await Lesson.findAll({
@@ -690,13 +686,15 @@ module.exports = {
             "lessonTitle",
             "gradeId",
             "isFeatured",
+            "lessonTime",
             "createdAt",
             "updatedAt",
             "status",
           ],
-          where: { id: { [Op.in]: topRatedLessonIds }, ...filter },
+          where: { id: { [Op.in]: topRatedLessonIds }, ...filter, status: true, isDeleted: false, ...durationCondition },
           // attributes: { exclude: ["grade_id"] },
           include: [
+            { association: "recipe", required: true, attributes: [] },
             {
               model: Grade,
               attributes: ["id", "grade"],
@@ -731,7 +729,6 @@ module.exports = {
             },
           ],
           order: order,
-          limit: limit
         });
 
         lessonData = JSON.parse(JSON.stringify(lessonData));
@@ -748,44 +745,28 @@ module.exports = {
             "status",
           ],
           where:
-            cookingDurations.length && lessonfilter.seasonal == ""
-              ? {
-                lessonId: { [Op.in]: lessonData.map(obj => obj.id) },
-                [Op.or]: cookingDurations.map((obj) => {
-                  return {
-                    estimatedMakeTime: {
-                      [Op.between]: [obj.from, obj.to],
-                    },
-                  };
-                }),
-              }
-              : cookingDurations.length && lessonfilter.seasonal !== ""
-                ? {
-                  [Op.or]: cookingDurations.map((obj) => {
-                    return {
-                      estimatedMakeTime: {
-                        [Op.between]: [obj.from, obj.to],
-                      },
-                    };
-                  }),
-                  holiday: lessonfilter.seasonal ? { [Op.not]: null } : { [Op.eq]: null },
-                }
-                : cookingDurations.length == 0 && lessonfilter.seasonal !== ""
-                  ? {
-                    holiday: lessonfilter.seasonal ? { [Op.not]: null } : { [Op.eq]: null },
-                  }
-                  : {},
+          lessonfilter.seasonal === ""
+          ? {
+            lessonId: { [Op.in]: lessonData.map(obj => obj.id) },
+          }
+          : {
+              lessonId: { [Op.in]: lessonData.map(obj => obj.id) },
+              holiday: lessonfilter.seasonal ? { [Op.not]: null } : { [Op.eq]: null },
+            },
+
 
           include: [
             {
               model: Country,
               attributes: ["id", "countryName"],
+              required : lessonfilter.countries.length ? true : false,
               where: lessonfilter.countries.length ? { id: { [Op.in]: lessonfilter.countries } } : {},
             },
             {
               model: RecipeTechnique,
               as: "recipeTechniques",
               attributes: ["id", "estimatedTime", "culinaryTechniqueId"],
+              required : lessonfilter.culinaryTechniques.length ? true : false,
               where: lessonfilter.culinaryTechniques.length
                 ? { culinaryTechniqueId: { [Op.in]: lessonfilter.culinaryTechniques } }
                 : {},
@@ -794,6 +775,7 @@ module.exports = {
               model: RecipeIngredient,
               as: "recipeIngredients",
               attributes: ["id", "ingredientId"],
+              required : lessonfilter.ingredients.length ? true : false,
               where: lessonfilter.ingredients.length ? { ingredientId: { [Op.in]: lessonfilter.ingredients } } : {},
               include: [
                 {
@@ -817,10 +799,12 @@ module.exports = {
         });
 
         recipeData = JSON.parse(JSON.stringify(recipeData));
-        let topRated = lessonData.map(obj => {
-          return Object.assign(obj, { recipe: recipeData.find(recipeObj => recipeObj.lessonId === obj.id) });
-        });
 
+        //lesson time and data linking
+        let topRated = lessonData.map(obj => {
+        let recipe = recipeData.find(recipeObj => recipeObj.lessonId === obj.id);
+        return Object.assign(obj, { recipe });
+      });
         //assign rating value to toRated object
         for (let i = 0; i < topRated.length; i++) {
           for (let j = 0; j < topRatedData.length; j++) {
@@ -831,7 +815,6 @@ module.exports = {
         }
         topRated.sort((a, b) => parseFloat(b.rating) - parseFloat(a.rating)); // sort by rating
         topRated = topRated.filter(obj => obj.recipe); // remove object where recipe data not available
-
         if (req.query.duration) {
           let ratingRound = topRated.map((item) => {
             item.rating = Math.round(item.rating)
@@ -856,21 +839,28 @@ module.exports = {
 
       if (req.query.viewMore && req.query.viewMore.toString() === 'true') limit = null;
       else limit = 3;
+
+      let standardIds = (
+        await QuestionStandard.findAll({
+        attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('standard_id')) ,'standard_id'],],
+        limit: limit, 
+      })).map(obj=>obj.toJSON().standard_id);
       //fitler
       let standardList = await Standard.findAll({
         attributes: ["id", "standardTitle", "image"],
-        where: { status: true },
-        limit: limit
+        where: { id: standardIds, status: true },
+        // limit: limit
       });
       standardList = JSON.parse(JSON.stringify(standardList));
 
-      let standardIds = standardList.map(obj => obj.id);
       let lessonData = await Lesson.findAll({
         attributes: [
           "id",
           "status",
         ],
+        where: { status: true, isDeleted: false },
         include: [
+          { association: "recipe", required: true, attributes: [] },
           {
             model: Question,
             attributes: ["id", "transactionId", "status"],
@@ -987,8 +977,9 @@ module.exports = {
           "updatedAt",
           "status",
         ],
-        where: { id: { [Op.in]: lessonIds }, ...filter },
+        where: { id: { [Op.in]: lessonIds }, ...filter, status: true, isDeleted: false },
         include: [
+          { association: "recipe", required: true, attributes: [] },
           {
             model: Grade,
             attributes: ["id", "grade"],
@@ -1131,12 +1122,14 @@ module.exports = {
           "gradeId",
           "languageId",
           "isFeatured",
+          "lessonTime",
           "createdAt",
           "updatedAt",
           "status",
         ],
-        where: req.query.searchBy === 'lessonTitle' ? { lessonTitle: { [Op.like]: req.query.searchParam + '%' } } : {},
+        where: req.query.searchBy === 'lessonTitle' ? { lessonTitle: { [Op.like]: req.query.searchParam + '%' }, status: true, isDeleted: false } : {},
         include: [
+          { association: "recipe", required: true, attributes: [] },
           {
             model: Grade,
             attributes: ["id", "grade"],
@@ -1164,6 +1157,14 @@ module.exports = {
       });
 
       lessonData = JSON.parse(JSON.stringify(lessonData));
+
+      //fetch ratings of lessons
+      let lessonRating = await StudentLessonRating.findAll({
+        attributes: [[Sequelize.fn('AVG', Sequelize.col('rating')), "avgRating"], "lessonId"],
+        group: ["lessonId"],
+        where: {lessonId: lessonData.map(obj => obj.id)}
+      });
+      lessonRating = JSON.parse(JSON.stringify(lessonRating));
 
       let recipeData = await Recipe.findAll({
         attributes: [
@@ -1220,6 +1221,9 @@ module.exports = {
       recipeData = JSON.parse(JSON.stringify(recipeData));
 
       lessonData = lessonData.map(obj => {
+      // binding rating
+      let rating = lessonRating.find(item => item.lessonId == obj.id);
+      obj.rating = rating ? parseFloat(rating.avgRating).toFixed(1): null;
         return Object.assign(obj, { recipe: recipeData.find(recipeObj => recipeObj.lessonId === obj.id) });
       });
       let rows = lessonData.filter((obj) => obj.recipe);
@@ -1259,12 +1263,13 @@ module.exports = {
       }
 
       lessonData.lesson = await Lesson.findOne({
-        where: { ...filter, isFeatured: true },
+        where: { ...filter, },
         // attributes: { exclude: ["grade_id"] },
         include: [
           "grade",
           "safetySteps",
           "cleanupSteps",
+          { association: "recipe", required: true, attributes: [] },
           {
             association: "experiment",
             include: [
@@ -1385,10 +1390,19 @@ module.exports = {
           },
         ],
       });
-
+      if (!lessonData.lesson) return utils.responseGenerator(StatusCodes.BAD_REQUEST, "Lesson does not exist");
       lessonData.lesson = JSON.parse(JSON.stringify(lessonData.lesson));
+      //fetch ratings of lessons
+      let lessonRating = await StudentLessonRating.findOne({
+        attributes: [[Sequelize.fn('AVG', Sequelize.col('rating')), "avgRating"], "lessonId"],
+        group: ["lessonId"],
+        where: {lessonId: lessonData.lesson.id}
+      });
+      lessonRating = JSON.parse(JSON.stringify(lessonRating));
+      lessonData.lesson.rating = lessonRating ? parseFloat(lessonRating.avgRating).toFixed(1) : null;
 
       lessonData.recipe = await getRecipe({ lessonId: lessonData.lesson.id });
+
       lessonData.recipe.country.matchFlags = await getOptionFlags(lessonData.recipe.countryId);
 
       // recipeData = JSON.parse(JSON.stringify(recipeData));
@@ -1530,7 +1544,7 @@ module.exports = {
     try {
       const { lessonId, recipeId, classId } = reqBody;
       if (lessonId) {
-        const count = await Lesson.count({ where: { id: lessonId } });
+        const count = await Lesson.count({ where: { id: lessonId, isDeleted: false } });
         if (!count) {
           return utils.responseGenerator(StatusCodes.BAD_REQUEST, "Lesson do not exist");
         }
@@ -1611,7 +1625,7 @@ module.exports = {
       //filter
       const ids = await modelHelper.accessibleIds(user_id);
       const lessonCount = await Lesson.count({
-        where: { id: param_id },
+        where: { id: param_id},
       });
       if (!lessonCount) {
         return utils.responseGenerator(StatusCodes.BAD_REQUEST, "Lesson does not exist");
@@ -1688,8 +1702,8 @@ module.exports = {
 
       }
 
+      var today = new Date();
       if (req.query.duration) {
-        var today = new Date();
         var priorDate = new Date();
         if (req.query.duration == 'week') filter.createdAt = { [Op.between]: [new Date(priorDate.setDate(priorDate.getDate() - 7)), today] };
         if (req.query.duration == 'month') filter.createdAt = { [Op.between]: [new Date(priorDate.setDate(priorDate.getDate() - 30)), today] };
@@ -1698,9 +1712,14 @@ module.exports = {
       }
 
       const { count, rows } = await AssignLesson.findAndCountAll({
-        where: { ...filter, classId: classIds },
+        where: {
+          ...filter, classId: classIds, endDate: {
+            [Op.gte]: today,
+          }
+        },
         include: [
-          "recipe",
+          {association: "lesson", where:{status: true, isDeleted: false}, attributes:[]},
+          {association: "recipe", required: true, include:["country"]},
           "customSetting",
           {
             association: "studentProgress",
@@ -1711,7 +1730,50 @@ module.exports = {
         order: [["created_at", "DESC"]],
         ...pagging,
       });
-      return utils.responseGenerator(StatusCodes.OK, "Assigned lessons fetched", { count, rows });
+      const data=[];
+      for (row of rows) {
+        row = row.toJSON();
+        let lessonTime = 0;
+        //recipe time
+        lessonTime += row.recipe.estimatedMakeTime ? row.recipe.estimatedMakeTime : 0;
+        // performance time
+            // lessonTime += row.estimatedTimeForPreparation ? row.estimatedTimeForPreparation : 0; only for teacher
+        if (row.customSetting) {
+          const customSetting = row.customSetting.content;
+          //cooking time
+          if (customSetting[0].status) lessonTime += customSetting[0].time ? customSetting[0].time : 0;
+          //technique time
+          for ( item of customSetting[0].cooking) if (item.status) lessonTime += item.estimatedTime ? item.estimatedTime : 0;
+          //story time
+          if (customSetting[1].status) lessonTime += customSetting[1].time ? customSetting[1].time : 0;
+          //sensory and experiment time
+          if (customSetting[2].status) lessonTime += customSetting[2].time ? customSetting[2].time : 0;
+          //assessment time
+          if (customSetting[3].status) lessonTime += customSetting[3].time ? customSetting[3].time : 0;
+        }
+        row.lessonTime = lessonTime;
+        data.push(row);
+      }
+      return utils.responseGenerator(StatusCodes.OK, "Assigned lessons fetched", { count, rows: data });
+    } catch (err) {
+      throw err;
+    }
+  },
+  getAssignedRecipeTitle: async (req, param_id) => {
+    try {
+      const filter = { id: param_id, deletedAt: null };
+      const data = await AssignLesson.findOne({
+        attributes: [],
+        where: filter,
+        include: [
+          { association: "lesson", where: { status: true, isDeleted: false }, attributes: [] },
+          { association: "recipe", required: true, attributes: ["recipeTitle", "recipeImage"] },
+        ],
+      });
+      if (!data) {
+        return utils.responseGenerator(StatusCodes.BAD_REQUEST, "Assigned lesson does not exist");
+      }
+      return utils.responseGenerator(StatusCodes.OK, "Assigned lesson fetched", data);
     } catch (err) {
       throw err;
     }
@@ -1733,6 +1795,7 @@ module.exports = {
           ],
         }),
       ]);
+      if (!data.lesson) return utils.responseGenerator(StatusCodes.BAD_REQUEST, "Assigned lesson does not exist");
       data.recipe.country.matchFlags = await getOptionFlags(data.recipe.countryId);
       // apply custom settings on lesson questions
       // if (data.customSetting) {

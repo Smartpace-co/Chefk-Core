@@ -26,8 +26,9 @@ let { StatusCodes } = require("http-status-codes");
 require("dotenv").config();
 const env = process.env.NODE_ENV || "development";
 const config = require("../../config/config")[env];
-const resetPasswordPath = config.reset_password_path;
-let resetPasswordTemplateId = config.sendgrid.reset_password_template_id;
+const file_upload_location = config.file_upload_location;
+const generatePasswordPath = config.generate_password_path;
+const generatePasswordTemplateId = config.sendgrid.generate_password_template_id;
 let User = require("../models").users;
 let generalTemplateId = config.sendgrid.general_template_id;
 let DistrictAdmin = require("../models").district_admins;
@@ -103,13 +104,13 @@ async function createSt(reqBody, t) {
       );
     }
 
-    let resetPasswordLink = `${resetPasswordPath}?token=${accessToken}`;
+    let generatePasswordLink = `${generatePasswordPath}?token=${accessToken}`;
     let templateData = {
-      reset_link: resetPasswordLink,
+      generate_password_link: generatePasswordLink,
     };
 
     await modelHelper.addSettings(student.id, reqBody.roleId, studentSettings, t);
-    utils.sendEmail(reqBody.contactPersonEmail, resetPasswordTemplateId, templateData);
+    utils.sendEmail(reqBody.contactPersonEmail, generatePasswordTemplateId, templateData);
 
     // add welcome notification
     await notificationService.createNotifications(student.id, reqBody.roleId, reqBody.createdBy, "new_account");
@@ -152,6 +153,29 @@ module.exports = {
           return { studentId: data.id, classId, createdBy: user_id };
         });
         await Class_student.bulkCreate(processedClassIds, { transaction: t });
+
+        // email and notify the students
+        const clses = await Class.findAll({
+          attributes: ["id", "title"],
+          where: { id: classIds },
+        });
+        const roleId = (await Role.findOne({ where: { title: "Student" } })).id;
+
+          for (cls of clses){
+            let templateData = {
+              subject: "Added to class",
+              header: "You have been added to a class",
+              content: `Class Name: ${cls.title}, Student Name:${data.firstName} ${data.lastName}`,
+            };
+            utils.sendEmail(data.contactPersonEmail, generalTemplateId, templateData);
+            await notificationService.createNotifications(
+              data.id,
+              roleId,
+              user_id,
+              "added_to_class",
+              { className: cls.title}
+            );
+          }
       }
       if (allergenIds) {
         const processedAllergenIds = allergenIds.map((allergenId) => {
@@ -194,7 +218,7 @@ module.exports = {
         }
       }
       //process file
-      const filePath = process.env.FILE_UPLOAD_LOCATION + "/" + fileName;
+      const filePath = file_upload_location + "/" + fileName;
       const { data, error } = fileParser.fileParser(filePath);
       if (error) return utils.responseGenerator(StatusCodes.BAD_REQUEST, "File parsing failed", error, true);
 
@@ -211,7 +235,7 @@ module.exports = {
             lastName,
             dob,
             grade,
-            contactType,
+            // contactType,
             contactPersonEmail,
             contactPersonNumber,
             contactPersonName,
@@ -226,14 +250,14 @@ module.exports = {
             !lastName ||
             !dob ||
             !grade ||
-            !contactType ||
+            // !contactType ||
             !contactPersonEmail ||
             !contactPersonNumber ||
             !contactPersonName ||
             !contactPersonRelation ||
             !status
           )
-            throw "missing info; requiredFeild: username, firstName, lastName, dob, grade, contactNype, contactPersonEmail, contactPersonNumber, contactPersonName, contactPersonRelation, status; optionalFeilds: school, gender ";
+            throw "missing info; requiredFeild: username, firstName, lastName, dob, grade, contactPersonEmail, contactPersonNumber, contactPersonName, contactPersonRelation, status; optionalFeilds: school, gender ";
           // const userNameConflict = await Student.count({
           //   where: { userName: user_name, email: { [Op.not]: contact_person_email } },
           // });
@@ -244,12 +268,13 @@ module.exports = {
           const gradeId = await Grade.findOne({ where: { grade: grade } });
           if (!gradeId) throw "invalid grade";
           else row.gradeId = gradeId.id;
-          if (contactType.toLowerCase() != "parent" && contactType.toLowerCase() != "guardian")
-            throw "invalid contact_type";
+          // if (contactType.toLowerCase() != "parent" && contactType.toLowerCase() != "guardian")
+          //   throw "invalid contact_type";
           if (!utils.emailValidation(contactPersonEmail)) throw "invalid email";
-          if (!parseInt(contactPersonNumber)) throw "inavlid phone_number";
+          const formatedNumber = utils.phoneVerifierFormater(contactPersonNumber);
+          if (!formatedNumber) throw "inavlid phone_number"; else row.contactPersonNumber = formatedNumber;
           const relation = await Relation.findOne({
-            where: { title: contactPersonRelation, type: contactType },
+            where: { title: contactPersonRelation, /* type: contactType */ },
           });
           if (!relation) throw "invalid relation";
           else row.contactPersonRelationId = relation.id;
@@ -319,10 +344,11 @@ module.exports = {
     }
   },
   getAllStudents: async (req, user_id) => {
-    try {
+    try { 
       //fitler
       const filter = {};
       req.query.school_id ? (filter.schoolId = req.query.school_id) : null;
+      req.query.existInSchool === "false" ? filter.school_id = null : null; 
       req.query.status ? (filter.status = req.query.status) : null;
       //serach
       const searchBy = {};
@@ -357,22 +383,15 @@ module.exports = {
       parseInt(page_size) ? (pagging.limit = parseInt(page_size)) : null;
       if (req.user.isStudent) return utils.responseGenerator(StatusCodes.UNAUTHORIZED, "Unathorized Access");
       //accessibleIds of this user
-      let accessId;
-      const { entityId, entityType, isSubUser, parentId, rootParentId } = await modelHelper.entityDetails(user_id);
-      if (entityType == "district" && !isSubUser) accessId = user_id;
-      else if (entityType == "district" && isSubUser) accessId = parentId;
-      else if (entityType == "school" && !isSubUser){
-       accessId = rootParentId ? rootParentId: user_id;
-       rootParentId ? filter.schoolId = entityId: null; 
+      const { entityId, entityType, isSubUser, parentId, parentEntityId, rootParentId } = await modelHelper.entityDetails(user_id);
+      if (entityType == "district" && !isSubUser) filter.districtId = entityId;
+      else if (entityType == "district" && isSubUser) filter.districtId = parentEntityId;
+      else if (entityType == "school" && !isSubUser) filter.schoolId =  entityId; 
+      else if (entityType == "school" && isSubUser) filter.schoolId =  parentEntityId;
+      else {
+      const ids = await modelHelper.accessibleIds(user_id);
+      filter.createdBy = [user_id, ...ids];
       }
-      else if (entityType == "school" && isSubUser){
-       accessId = rootParentId? rootParentId: parentId;
-       rootParentId ? filter.schoolId = entityId: null; 
-      }
-      else accessId = user_id;
-      const ids = await modelHelper.accessibleIds(accessId);
-      filter.createdBy = [accessId, ...ids];
-
       if (req.query.duration) {
         var today = new Date();
         var priorDate = new Date();
@@ -462,18 +481,11 @@ module.exports = {
         if (param_id != user_id) return utils.responseGenerator(StatusCodes.BAD_REQUEST, "Student does not exist");
       } else {
         //accessibleIds of this user
-        let accessId;
-        const { entityId, entityType, isSubUser, parentId, rootParentId } = await modelHelper.entityDetails(user_id);
-        if (entityType == "district" && !isSubUser) accessId = user_id;
-        else if (entityType == "district" && isSubUser) accessId = parentId;
-        else if (entityType == "school" && !isSubUser){
-         accessId = rootParentId ? rootParentId: user_id;
-         rootParentId ? filter.schoolId = entityId: null; 
-        }
-        else if (entityType == "school" && isSubUser){
-         accessId = rootParentId? rootParentId: parentId;
-         rootParentId ? filter.schoolId = entityId: null; 
-        }
+        const { entityId, entityType, isSubUser, parentEntityId } = await modelHelper.entityDetails(user_id);
+        if (entityType == "district" && !isSubUser) filter.districtId = entityId;
+        else if (entityType == "district" && isSubUser) filter.districtId = parentEntityId;
+        else if (entityType == "school" && !isSubUser) filter.schoolId = entityId;
+        else if (entityType == "school" && isSubUser) filter.schoolId = parentEntityId;
         else if (entityType == "teacher") {
           const count = await Class.count({
             include: [
@@ -482,10 +494,10 @@ module.exports = {
             ],
           });
           if (!count) return utils.responseGenerator(StatusCodes.BAD_REQUEST, "Student does not exist");
-        } else accessId = user_id;
-        if (entityType != "teacher") {
-          const ids = await modelHelper.accessibleIds(accessId);
-          filter.createdBy = [accessId, ...ids];
+        } else {
+          //accessibleIds of this user
+          const ids = await modelHelper.accessibleIds(user_id);
+          filter.createdBy = [user_id, ...ids];
         }
       }
       const student = await Student.findOne({
@@ -545,18 +557,11 @@ module.exports = {
         if (param_id != user_id) return utils.responseGenerator(StatusCodes.BAD_REQUEST, "Student does not exist");
       } else {
         //accessibleIds of this user
-        let accessId;
-        const { entityId, entityType, isSubUser, parentId, rootParentId } = await modelHelper.entityDetails(user_id);
-        if (entityType == "district" && !isSubUser) accessId = user_id;
-        else if (entityType == "district" && isSubUser) accessId = parentId;
-        else if (entityType == "school" && !isSubUser){
-         accessId = rootParentId ? rootParentId: user_id;
-         rootParentId ? filter.schoolId = entityId: null; 
-        }
-        else if (entityType == "school" && isSubUser){
-         accessId = rootParentId? rootParentId: parentId;
-         rootParentId ? filter.schoolId = entityId: null; 
-        }
+        const { entityId, entityType, isSubUser, parentEntityId} = await modelHelper.entityDetails(user_id);
+        if (entityType == "district" && !isSubUser) filter.districtId = entityId;
+        else if (entityType == "district" && isSubUser) filter.districtId = parentEntityId;
+        else if (entityType == "school" && !isSubUser) filter.schoolId = entityId;
+        else if (entityType == "school" && isSubUser) filter.schoolId = parentEntityId;
         else if (entityType == "teacher") {
           const count = await Class.count({
             include: [
@@ -565,10 +570,10 @@ module.exports = {
             ],
           });
           if (!count) return utils.responseGenerator(StatusCodes.BAD_REQUEST, "Student does not exist");
-        } else accessId = user_id;
-        if (entityType != "teacher") {
-          const ids = await modelHelper.accessibleIds(accessId);
-          filter.createdBy = [accessId, ...ids];
+        } else {
+          //accessibleIds of this user
+          const ids = await modelHelper.accessibleIds(user_id);
+          filter.createdBy = [user_id, ...ids];
         }
         reqBody.updatedBy = user_id;
         extaFields.createdBy = user_id;
@@ -587,8 +592,29 @@ module.exports = {
         const processedClassIds = classIds.map((classId) => {
           return { studentId, classId, ...extaFields };
         });
+        const oldClsIds = (await Class_student.findAll({ where: { studentId: studentId } })).map(i => i.classId);
+        const newClsIds = classIds.filter(id => !oldClsIds.includes(id));
+        const newClses = await Class.findAll({ attributes: ["id", "title"], where: {id: newClsIds}});
         await Class_student.destroy({ where: { studentId }, transaction: t });
         await Class_student.bulkCreate(processedClassIds, { transaction: t });
+
+        // email and notify the students
+        const roleId = (await Role.findOne({ where: { title: "Student" } })).id;
+          for (cls of newClses){
+            let templateData = {
+              subject: "Added to class",
+              header: "You have been added to a class",
+              content: `Class Name: ${cls.title}, Student Name:${details.firstName} ${details.lastName}`,
+            };
+            utils.sendEmail(details.contactPersonEmail, generalTemplateId, templateData);
+            await notificationService.createNotifications(
+              studentId,
+              roleId,
+              user_id,
+              "added_to_class",
+              { className: cls.title}
+            );
+          }
       }
       if (allergenIds) {
         const processedAllergens = allergenIds.map((allergenId) => {
@@ -617,7 +643,7 @@ module.exports = {
   getStudentsByClassId: async (req, param_id, user_id) => {
     try {
       //filter
-      const filter = {};
+      const filter = { class_id : param_id };
       const filter1 = {};
 
       req.query.status ? (filter1.status = req.query.status) : null;
@@ -635,20 +661,10 @@ module.exports = {
       const pagging = {};
       parseInt(page_size) ? (pagging.offset = parseInt(page_size) * (page_no - 1)) : null;
       parseInt(page_size) ? (pagging.limit = parseInt(page_size)) : null;
-      if (param_id != user_id) {
-        //accessibleIds of this user
-        const ids = await modelHelper.accessibleIds(user_id);
-        filter.class_id = param_id;
-        filter.createdBy = [user_id, ...ids];
-      } else {
-        filter.class_id = param_id;
-      }
-
-      //accessibleIds of this user
-      const ids = await modelHelper.accessibleIds(user_id);
 
       const { count, rows } = await Class_student.findAndCountAll({
-        where: { ...filter, createdBy: [user_id, ...ids] },
+        distinct: true,
+        where: filter,
         include: [
           {
             model: Student,

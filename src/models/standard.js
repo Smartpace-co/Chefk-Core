@@ -9,10 +9,17 @@ module.exports = (sequelize, DataTypes) => {
         primaryKey: true,
         type: DataTypes.INTEGER,
       },
+      
+      keyValue: {
+        type: DataTypes.STRING(200),
+        allowNull: false,
+        unique: true,
+        field: "key_value",
+      },
 
       standardTitle: {
         type: DataTypes.STRING(45),
-        allowNull: false,
+        allowNull: true,
         unique: true,
         field: "title",
       },
@@ -79,11 +86,11 @@ module.exports = (sequelize, DataTypes) => {
     }
   );
 
-  // standard.associate = function (models) {
-  //   standard.belongsTo(models.subjects, {
-  //     foreignKey: "subjectId",
-  //   });
-  // };
+  standard.associate = function (models) {
+    standard.belongsTo(models.subjects, {
+      foreignKey: "subjectId",
+    });
+  };
 
   return standard;
 };

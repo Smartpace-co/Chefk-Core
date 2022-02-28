@@ -25,6 +25,11 @@ module.exports = (sequelize, DataTypes) => {
           key: "id",
         },
       },
+      customDistrictName: {
+        type: DataTypes.STRING(45),
+        field: "custom_district_name",
+        allowNull: true,
+      },
       parentId: {
         type: DataTypes.INTEGER,
         allowNull: true,
@@ -114,10 +119,10 @@ module.exports = (sequelize, DataTypes) => {
         unique: true,
         field: "customer_id",
       },
-      status: {
-        type: DataTypes.BOOLEAN,
-        defaultValue: true,
-      },
+      // status: {
+      //   type: DataTypes.BOOLEAN,
+      //   defaultValue: true,
+      // },
       deletedBy: {
         type: DataTypes.INTEGER,
         field: "deleted_by",

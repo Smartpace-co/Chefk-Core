@@ -263,8 +263,6 @@ module.exports = {
    *                       type: string
    *                     ethnicityId:
    *                       type: number
-   *                     contactType:
-   *                       type: string
    *                     contactPersonEmail:
    *                       type: string
    *                     contactPersonNumber:

@@ -38,6 +38,10 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING(45),
         allowNull: true,
       },
+      custom_school_name: {
+        type: DataTypes.STRING(45),
+        allowNull: true,
+      },
       first_name: {
         type: DataTypes.STRING(45),
         allowNull: true,

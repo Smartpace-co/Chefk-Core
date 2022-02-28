@@ -18,8 +18,9 @@ let { StatusCodes } = require("http-status-codes");
 require("dotenv").config();
 const env = process.env.NODE_ENV || "development";
 const config = require("../../config/config")[env];
-const resetPasswordPath = config.reset_password_path;
-let resetPasswordTemplateId = config.sendgrid.reset_password_template_id;
+const file_upload_location = config.file_upload_location;
+const generatePasswordPath = config.generate_password_path;
+let generatePasswordTemplateId = config.sendgrid.generate_password_template_id;
 
 //////////////////////////////// FUNCTIONS
 async function createDU(reqBody) {
@@ -47,9 +48,9 @@ async function createDU(reqBody) {
     { transaction: t }
     );
     let accessToken = JWTHelper.getAccessToken(savedUser, savedUser.password);
-    let resetPasswordLink = `${resetPasswordPath}?token=${accessToken}`;
+    let generatePasswordLink = `${generatePasswordPath}?token=${accessToken}`;
     let templateData = {
-      reset_link: resetPasswordLink,
+      generate_password_link: generatePasswordLink,
     };
     await User.update(
       { token: accessToken },
@@ -67,11 +68,11 @@ async function createDU(reqBody) {
       t
     );
     await t.commit();
-    await utils.sendEmail(reqBody.email, resetPasswordTemplateId, templateData);
+    utils.sendEmail(reqBody.email, generatePasswordTemplateId, templateData);
     await notificationService.createNotifications(
       savedUser.id,
       savedUser.role_id,
-      id,
+      reqBody.createdBy,
       "new_account",
     );
     const data = { ...savedUser.dataValues, district_user: savedDistrictUser.dataValues, password: undefined };
@@ -136,7 +137,7 @@ module.exports = {
         return utils.responseGenerator(StatusCodes.BAD_REQUEST, "District do not exist");
       }
       //process file
-      const filePath = process.env.FILE_UPLOAD_LOCATION + "/" + reqBody.file_name;
+      const filePath = file_upload_location + "/" + reqBody.file_name;
       const { data, error } = fileParser.fileParser(filePath);
       if (error) return utils.responseGenerator(StatusCodes.BAD_REQUEST, "File parsing failed", error, true);
 
@@ -153,9 +154,10 @@ module.exports = {
           if (!role) throw "invalid role title";
           else row.role_id = role.id; // finetunning role
           if (!utils.emailValidation(email)) throw "invalid email";
-          if (!parseInt(phone_number)) throw "inavlid phone_number";
+          const formatedNumber = utils.phoneVerifierFormater(phone_number);
+          if (!formatedNumber) throw "inavlid phone_number"; else row.phone_number = formatedNumber;
           if (status.toLowerCase() != "active" && status.toLowerCase() != "inactive") throw "invalid status";
-          status.toLowerCase == "active" ? (row.status = true) : (row.status = false); // finetunning status
+          status.toLowerCase() == "active" ? (row.status = true) : (row.status = false); // finetunning status
           // check if row exists and blongs to district
           const districtUser = await User.findOne({
             where: { email: email },

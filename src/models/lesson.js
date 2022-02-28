@@ -120,6 +120,12 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true,
         field: "assessment_time",
       },
+      
+      lessonTime: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        field: "lesson_time",
+      },
 
       goodbye: {
         type: DataTypes.TEXT,
@@ -167,10 +173,26 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true,
         field: "cleanup_steps_track",
       },
+      
+      systemLanguageId: {
+        type: DataTypes.INTEGER,
+        field: "system_language_id",
+        allowNull: true,
+        references: {
+          model: "system_languages",
+          key: "id",
+        },
+      },
 
       status: {
         type: DataTypes.BOOLEAN,
         defaultValue: true,
+      },
+
+      isDeleted: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+        field: "is_deleted",
       },
 
       createdBy: {
@@ -234,7 +256,7 @@ module.exports = (sequelize, DataTypes) => {
 
     lesson.hasOne(models.teacher_instructions, {
       foreignKey: "lessonId",
-      as: "teacherInstructions"
+      as: "teacherInstructions",
     });
 
     lesson.hasOne(models.experiments, {

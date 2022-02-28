@@ -2,7 +2,8 @@
 const Joi = require("joi");
 //create
 const create = Joi.object({
-  district_id: Joi.number(),
+  district_id: Joi.number().allow(null),
+  customDistrictName: Joi.string().max(45).allow("").allow(null),
   name: Joi.string().max(45).required(),
   admin_account_name: Joi.string().max(45).required(),
   email: Joi.string().max(45).required(),
@@ -24,7 +25,8 @@ const create = Joi.object({
 });
 //update
 const update = Joi.object({
-  district_id: Joi.number(),
+  district_id: Joi.number().allow(null),
+  customDistrictName: Joi.string().max(45).allow("").allow(null),
   name: Joi.string().max(45),
   admin_account_name: Joi.string().max(45),
   admin_gender: Joi.string().max(45).allow("").allow(null), //b
@@ -37,7 +39,7 @@ const update = Joi.object({
   display_name: Joi.string().max(250).allow("").allow(null), //b
   contact_person_name: Joi.string().max(45),
   contact_person_number: Joi.string().max(45).allow("").allow(null),
-  contact_person_email: Joi.string().max(45),
+  contact_person_email: Joi.string().max(45).allow("").allow(null),
   contact_person_title: Joi.string().max(45).allow("").allow(null), //b
   contact_person_gender: Joi.string().max(45).allow("").allow(null), //b
   contact_person_address: Joi.string().max(250).allow("").allow(null), //b

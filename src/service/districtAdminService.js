@@ -17,7 +17,9 @@ let { StatusCodes } = require("http-status-codes");
 require("dotenv").config();
 const env = process.env.NODE_ENV || "development";
 const config = require("../../config/config")[env];
+const generatePasswordPath = config.generate_password_path;
 const resetPasswordPath = config.reset_password_path;
+const generatePasswordTemplateId = config.sendgrid.generate_password_template_id;
 let resetPasswordTemplateId = config.sendgrid.reset_password_template_id;
 const paymentRequestTemplateId = config.sendgrid.payment_request_template_id;
 let Payment = require("../models").payments;
@@ -29,6 +31,7 @@ const AssignLesson = require("../models").assign_lessons;
 const StudentLessonAnswer = require("../models").student_lesson_answers;
 const Lesson = require("../models").lessons;
 const Class = require("../models").classes;
+let { UniqueConstraintError, ForeignKeyConstraintError } = require("sequelize");
 
 module.exports = {
   createDistrictAdmin: async (reqBody, id) => {
@@ -73,9 +76,9 @@ module.exports = {
       );
 
       let accessToken = JWTHelper.getAccessToken(savedUser, savedUser.password);
-      let resetPasswordLink = `${resetPasswordPath}?token=${accessToken}`;
+      let generatePasswordLink = `${generatePasswordPath}?token=${accessToken}`;
       let templateData = {
-        reset_link: resetPasswordLink,
+        generate_password_link: generatePasswordLink,
       };
 
       await User.update(
@@ -126,16 +129,16 @@ module.exports = {
           { where: { id: savedSubscribePackage.id } }
         );
 
-        let paymentRequestTemplateData = {
-          checkout_link: session.url,
-        };
-        utils.sendEmail(
-          email,
-          paymentRequestTemplateId,
-          paymentRequestTemplateData
-        );
+        // let paymentRequestTemplateData = {
+        //   checkout_link: session.url,
+        // };
+        // utils.sendEmail(
+        //   email,
+        //   paymentRequestTemplateId,
+        //   paymentRequestTemplateData
+        // );
       }
-      utils.sendEmail(email, resetPasswordTemplateId, templateData);
+      utils.sendEmail(email, generatePasswordTemplateId, templateData);
       const data = {
         ...savedUser.dataValues,
         ...savedDistrictAdmin.dataValues,
@@ -159,8 +162,14 @@ module.exports = {
         }
       );
     } catch (err) {
-      console.log("Error ==> ", err);
       await t.rollback();
+      if (err instanceof UniqueConstraintError) {
+        return utils.responseGenerator(
+          StatusCodes.CONFLICT,
+          "Distrcit admin already exist"
+        );
+      } 
+      console.log("Error ==> ", err);
       throw err;
     }
   },
@@ -266,10 +275,10 @@ module.exports = {
             }
           );
         }
-        if (subscribePackageDetails.subscriptionId)
-          await stripeHelper.cancelSubscription(
-            subscribePackageDetails.subscriptionId
-          );
+        // if (subscribePackageDetails.subscriptionId)
+        //   await stripeHelper.cancelSubscription(
+        //     subscribePackageDetails.subscriptionId
+        //   );
 
         const savedSubscribePackage = await SubscribePackage.create({
           uuid: await utils.getUUID("SP"),
@@ -296,14 +305,20 @@ module.exports = {
           savedSubscribePackage.id,
           packageDetails.priceId
         );
-        let paymentRequestTemplateData = {
-          checkout_link: session.url,
-        };
-        utils.sendEmail(
-          reqBody.email,
-          paymentRequestTemplateId,
-          paymentRequestTemplateData
+        
+        await SubscribePackage.update(
+          { sessionId: session.id },
+          { where: { id: savedSubscribePackage.id } }
         );
+
+        // let paymentRequestTemplateData = {
+        //   checkout_link: session.url,
+        // };
+        // utils.sendEmail(
+        //   reqBody.email,
+        //   paymentRequestTemplateId,
+        //   paymentRequestTemplateData
+        // );
       }
       return utils.responseGenerator(
         StatusCodes.OK,
@@ -315,6 +330,12 @@ module.exports = {
         }
       );
     } catch (err) {
+      if (err instanceof UniqueConstraintError) {
+        return utils.responseGenerator(
+          StatusCodes.CONFLICT,
+          "Distrcit admin already exist"
+        );
+      } 
       console.log("Error ==> ", err);
       throw err;
     }
@@ -378,7 +399,7 @@ module.exports = {
     const filter = {};
     param_id ? (filter.district_id = param_id) : null;
     const filter1 = {};
-    param_id ? (filter.districtId = param_id) : null;
+    param_id ? (filter1.districtId = param_id) : null;
     try {
       let StudentCount = await ClassStudent.count({
         include: [
@@ -418,7 +439,7 @@ module.exports = {
           {
             model: Class,
             where: {
-              ...filter1,
+              ...filter,
             },
           },
         ],
@@ -426,11 +447,11 @@ module.exports = {
 
       let StudentsAnswersData = await ClasStudent.findAll({
         attributes: ["id", "studentId", "classId"],
-        where: { ...filter1 },
         include: [
           {
             model: Student,
             attributes: ["id", "firstName", "lastName"],
+            where: { ...filter1 },
             include: [
               {
                 model: StudentLessonAnswer,
@@ -463,7 +484,7 @@ module.exports = {
           },
         ],
       });
-
+      
       assignmentQuestionsData = JSON.parse(
         JSON.stringify(assignmentQuestionsData)
       );

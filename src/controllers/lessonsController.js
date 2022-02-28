@@ -139,6 +139,15 @@ module.exports = {
       next(err);
     }
   },
+  getAssignedRecipeTitle: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      let response = await lessonsService.getAssignedRecipeTitle(req, id);
+      res.status(response.status).send(response);
+    } catch (err) {
+      next(err);
+    }
+  },
   getAssignedLesson: async (req, res, next) => {
     try {
       const { id } = req.params;

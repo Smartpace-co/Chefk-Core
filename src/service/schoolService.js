@@ -17,7 +17,9 @@ let { StatusCodes } = require("http-status-codes");
 require("dotenv").config();
 const env = process.env.NODE_ENV || "development";
 const config = require("../../config/config")[env];
+const generatePasswordPath = config.generate_password_path;
 const resetPasswordPath = config.reset_password_path;
+const generatePasswordTemplateId = config.sendgrid.generate_password_template_id;
 let resetPasswordTemplateId = config.sendgrid.reset_password_template_id;
 const checkoutdPath = config.checkout_path;
 const paymentRequestTemplateId = config.sendgrid.payment_request_template_id;
@@ -32,6 +34,7 @@ const Lesson = require("../models").lessons;
 const Class = require("../models").classes;
 let notificationService = require("../service/notificationService");
 let generalTemplateId = config.sendgrid.general_template_id;
+let { UniqueConstraintError, ForeignKeyConstraintError } = require("sequelize");
 
 module.exports = {
   checkSchoolNameConflict: async (name) => {
@@ -139,14 +142,14 @@ module.exports = {
             { where: { id: savedSubscribePackage.id }, transaction: t }
           );
 
-          let paymentRequestTemplateData = {
-            checkout_link: session.url,
-          };
-          utils.sendEmail(
-            reqBody.email,
-            paymentRequestTemplateId,
-            paymentRequestTemplateData
-          );
+          // let paymentRequestTemplateData = {
+          //   checkout_link: session.url,
+          // };
+          // utils.sendEmail(
+          //   reqBody.email,
+          //   paymentRequestTemplateId,
+          //   paymentRequestTemplateData
+          // );
         }
 
         data = {
@@ -175,12 +178,12 @@ module.exports = {
         "new_account",
       );
       await t.commit();
-      let resetPasswordLink = `${resetPasswordPath}?token=${accessToken}`;
+      let generatePasswordLink = `${generatePasswordPath}?token=${accessToken}`;
       let templateData = {
-        reset_link: resetPasswordLink,
+        generate_password_link: generatePasswordLink,
       };
 
-      utils.sendEmail(reqBody.email, resetPasswordTemplateId, templateData);
+      utils.sendEmail(reqBody.email, generatePasswordTemplateId, templateData);
 
       return utils.responseGenerator(
         StatusCodes.OK,
@@ -191,25 +194,31 @@ module.exports = {
       );
     } catch (err) {
       await t.rollback();
+      if (err instanceof UniqueConstraintError) {
+        return utils.responseGenerator(
+          StatusCodes.CONFLICT,
+          "School already exist"
+        );
+      } 
+      console.log("Error ==> ", err);
       throw err;
     }
   },
   getAllSchools: async (req, user_id) => {
     try {
       //fitler
-      const filter = {};
-      req.query.status ? (filter.status = req.query.status) : null;
+      const filter1 = {};
+      const filter2 = {};
+      req.query.status ? (filter1.status = req.query.status) : null;
 
       //accessibleIds of this user
-      if (user_id) {
-        const { entityId, entityType, isSubUser, parentId } = await modelHelper.entityDetails(user_id);
+        const { entityId, entityType, isSubUser, parentEntityId } = await modelHelper.entityDetails(user_id);
         if (entityType != "super admin") {
-          let accessId = user_id;
-          if (entityType == "district" && isSubUser) accessId = parentId; // for district users using district id
-          const ids = await modelHelper.accessibleIds(accessId);
-          filter.createdBy = [accessId, ...ids];
+          if (entityType == "district" && !isSubUser)
+            filter2.district_id = entityId;
+          else if (entityType == "district" && isSubUser)
+            filter2.district_id = parentEntityId;
         }
-      }
 
       //serach
       const searchBy = {};
@@ -217,9 +226,6 @@ module.exports = {
       req.query.district_id
         ? (searchBy.district_id = req.query.district_id)
         : null;
-      if (req.query.district_id && !filter.createdBy) {
-        filter.createdBy = { [Op.not]: null };
-      }
 
       //pagging
       const { page_size, page_no = 1 } = req.query;
@@ -229,13 +235,18 @@ module.exports = {
         : null;
       parseInt(page_size) ? (pagging.limit = parseInt(page_size)) : null;
       const { count, rows } = await User.findAndCountAll({
+        distinct: true,
         attributes: { exclude: ["password", "token"] },
+        where : filter1,
         include: [
           {
             model: School,
             required: true,
-            where: { ...filter, ...searchBy },
-            include: ["classes", "students"],
+            where: { ...filter2, ...searchBy, deleted_at: null },
+            include: [
+              {association:"classes", required: false, where:{deleted_at: null, archived_at:null}},
+              "students"
+            ],
           },
         ],
         ...pagging,
@@ -256,25 +267,30 @@ module.exports = {
   },
   getSchool: async (param_id, user_id) => {
     try {
-      const filter = { id: param_id };
-
+      const filter1 = { id: param_id };
+      const filter2 = {};
       //accessibleIds of this user
       if (param_id != user_id) {
-        const { entityId, entityType, isSubUser, parentId } = await modelHelper.entityDetails(user_id);
+        const { entityId, entityType, isSubUser, parentEntityId } = await modelHelper.entityDetails(user_id);
         if (entityType != "super admin") {
-          let accessId = user_id;
-          if (entityType == "district" && isSubUser) accessId = parentId; // for district users using district id
-          const ids = await modelHelper.accessibleIds(accessId);
-          filter.createdBy = [accessId, ...ids];
+            if (entityType == "district" && !isSubUser)
+              filter2.district_id = entityId;
+            else if (entityType == "district" && isSubUser)
+              filter2.district_id = parentEntityId;
+            else {
+              const ids = await modelHelper.accessibleIds(user_id);
+              filter1.createdBy = [user_id, ...ids];
+            }
         }
       }
       const schoolDetails = await User.findOne({
-        where: filter,
+        where: filter1,
         attributes: { exclude: ["password", "token"] },
         include: [
           {
             model: School,
             required: true,
+            where: { ...filter2, deleted_at: null },
           },
         ],
       });
@@ -327,7 +343,7 @@ module.exports = {
 
       console.log("filter *************", filter);
       const rows = await School.findAll({
-        attributes: ["id", "district_id", "name", "status"],
+        attributes: ["id", "district_id", "name"],
         where: { ...filter },
       });
 
@@ -350,16 +366,21 @@ module.exports = {
     try {
       let isEmailChanged;
       let school;
-      const filter = {};
+      const filter1 = {};
+      const filter2 = {};
 
       //accessibleIds of this user
       if (param_id != user_id) {
-        const { entityId, entityType, isSubUser, parentId } = await modelHelper.entityDetails(user_id);
+        const { entityId, entityType, isSubUser, parentEntityId } = await modelHelper.entityDetails(user_id);
         if (entityType != "super admin") {
-          let accessId = user_id;
-          if (entityType == "district" && isSubUser) accessId = parentId; // for district users using district id
-          const ids = await modelHelper.accessibleIds(accessId);
-          filter.createdBy = [accessId, ...ids];
+          if (entityType == "district" && !isSubUser)
+              filter2.district_id = entityId;
+            else if (entityType == "district" && isSubUser)
+              filter2.district_id = parentEntityId;
+            else {
+              const ids = await modelHelper.accessibleIds(user_id);
+              filter1.createdBy = [user_id, ...ids];
+            }
         }
       }
       reqBody.updatedBy = user_id;
@@ -369,6 +390,7 @@ module.exports = {
           {
             model: School,
             required: true,
+            where: filter2,
             attributes: [],
           },
         ],
@@ -390,7 +412,7 @@ module.exports = {
           isEmailChanged = false;
         }
 
-        await User.update(reqBody, { where: { id: param_id, ...filter } });
+        await User.update(reqBody, { where: { id: param_id, ...filter1 } });
       } else {
         return utils.responseGenerator(
           StatusCodes.NOT_FOUND,
@@ -406,7 +428,7 @@ module.exports = {
       if (schoolDetails) {
         school = await School.update(reqBody,
           {
-            where: { user_id: param_id, ...filter },
+            where: { user_id: param_id, ...filter1 },
           });
       } else {
         return utils.responseGenerator(
@@ -427,7 +449,7 @@ module.exports = {
         const customer = schoolDetails.customerId;
 
         const subscribePackageDetails = await SubscribePackage.findOne({
-          attributes: ["subscriptionId"],
+          // attributes: ["subscriptionId"],
           where: {
             entityId: param_id,
             roleId: userDetails.role_id,
@@ -447,10 +469,10 @@ module.exports = {
             }
           );
         }
-        if (subscribePackageDetails.subscriptionId)
-          await stripeHelper.cancelSubscription(
-            subscribePackageDetails.subscriptionId
-          );
+        // if (subscribePackageDetails.subscriptionId)
+        //   await stripeHelper.cancelSubscription(
+        //     subscribePackageDetails.subscriptionId
+        //   );
 
         const newSubscribePackage = await SubscribePackage.create({
           uuid: await utils.getUUID("SP"),
@@ -477,14 +499,20 @@ module.exports = {
           newSubscribePackage.id,
           packageDetails.priceId
         );
-        let paymentRequestTemplateData = {
-          checkout_link: session.url,
-        };
-        utils.sendEmail(
-          reqBody.email,
-          paymentRequestTemplateId,
-          paymentRequestTemplateData
+
+        await SubscribePackage.update(
+          { sessionId: session.id },
+          { where: { id: newSubscribePackage.id }}
         );
+
+        // let paymentRequestTemplateData = {
+        //   checkout_link: session.url,
+        // };
+        // utils.sendEmail(
+        //   reqBody.email,
+        //   paymentRequestTemplateId,
+        //   paymentRequestTemplateData
+        // );
       }
       return utils.responseGenerator(
         StatusCodes.OK,
@@ -492,6 +520,13 @@ module.exports = {
         data
       );
     } catch (err) {
+      if (err instanceof UniqueConstraintError) {
+        return utils.responseGenerator(
+          StatusCodes.CONFLICT,
+          "School already exist"
+        );
+      } 
+      console.log("Error ==> ", err);
       throw err;
     }
   },

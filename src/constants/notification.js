@@ -9,4 +9,5 @@ exports.notification = {
   assignment_completed: "${this.entity} completed ${this.assignmentTitle} assignment.",
   student_take_action_activity:
     "Student ${this.firstName} ${this.lastName} has taken ${this.assignmentTitle} assignment's action activity",
+  added_to_class: "You have been added to '${this.className}' class",
 };

@@ -27,7 +27,7 @@ exports.cookingDuration = [
         id: 5,
         range: '61 & Above min',
         from: 61,
-        to: 250
+        to: 99999
     },
     
 ]
