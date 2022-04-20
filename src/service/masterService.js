@@ -242,7 +242,7 @@ module.exports = {
   getAllAllergens: async (req) => {
     try {
       //fitler
-      const data = await Allergen.findAll({});
+      const data = await Allergen.findAll({where: { status: true }});
       return utils.responseGenerator(
         StatusCodes.OK,
         "Allergens fetched successfully",

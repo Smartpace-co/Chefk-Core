@@ -104,6 +104,10 @@ module.exports = {
    *                type: array
    *                items:
    *                  type: number
+   *               assigned_standard_subject_group_ids:
+   *                type: array
+   *                items:
+   *                  type: number
    *               assigned_standard_ids:
    *                type: array
    *                items:
@@ -355,6 +359,10 @@ module.exports = {
    *                         type: object
    *                        school:
    *                         type: object
+   *                        class_standard_subject_groups:
+   *                         type: array
+   *                         items:
+   *                          type: object
    *                        class_standards:
    *                         type: array
    *                         items:
@@ -468,6 +476,10 @@ module.exports = {
    *                         type: object
    *                        school:
    *                         type: object
+   *                        class_standard_subject_groups:
+   *                         type: array
+   *                         items:
+   *                          type: object
    *                        class_standards:
    *                         type: array
    *                         items:
@@ -624,11 +636,15 @@ module.exports = {
    *                         type: string
    *                        grade_id:
    *                         type: number
-   *                        class_standard_ids:
+   *                        assigned_standard_subject_group_ids:
    *                         type: array
    *                         items:
    *                          type: number
-   *                        class_teacher_ids:
+   *                        assigned_standard_ids:
+   *                         type: array
+   *                         items:
+   *                          type: number
+   *                        assigned_teacher_ids:
    *                         type: array
    *                         items:
    *                          type: number

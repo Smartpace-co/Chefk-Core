@@ -122,6 +122,7 @@ module.exports = (sequelize, DataTypes) => {
   classModel.associate = function (models) {
     // association goes here
     classModel.belongsTo(models.grades, { foreignKey: "grade_id" });
+    classModel.hasMany(models.class_standard_subject_groups, { foreignKey: "class_id" });
     classModel.hasMany(models.class_standards, { foreignKey: "class_id" });
     classModel.hasMany(models.class_teachers, { foreignKey: "class_id" });
     classModel.hasMany(models.class_students, { foreignKey: "class_id" });

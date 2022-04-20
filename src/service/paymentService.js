@@ -38,12 +38,16 @@ module.exports = {
       else if (!packageDetails.status)
         return utils.responseGenerator(
           StatusCodes.OK,
-          "You can not pay for inactive subscription package"
+          "You can not pay for inactive package, please contact your admin",
+          "You can not pay for inactive package, please contact your admin",
+          true
         );
       else if (packageAmount === 0 || isNaN(packageAmount))
         return utils.responseGenerator(
           StatusCodes.OK,
-          "You can not pay for free subscription package"
+          "You can not pay for free subscription package",
+          "You can not pay for free subscription package",
+          true
         );
 
       const session = await stripeHelper.createSession(

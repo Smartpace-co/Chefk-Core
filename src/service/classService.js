@@ -2,6 +2,7 @@ let User = require("../models").users;
 let Teacher = require("../models").teachers;
 let Class = require("../models").classes;
 let Student = require("../models").students;
+let Class_standard_subject_group = require("../models").class_standard_subject_groups;
 let Class_standard = require("../models").class_standards;
 let Class_teacher = require("../models").class_teachers;
 let Class_student = require("../models").class_students;
@@ -47,21 +48,23 @@ module.exports = {
         },
         { transaction: t }
       );
-
-
+      const processedStandardSubjectGroups = reqBody.assigned_standard_subject_group_ids.map((subject_id) => {
+        return { class_id: savedClass.id, subject_id: subject_id, createdBy: user_id, updatedBy: user_id };
+      });
+      if(processedStandardSubjectGroups.length) await Class_standard_subject_group.bulkCreate(processedStandardSubjectGroups, { transaction: t });
       const processedClassStandards = reqBody.assigned_standard_ids.map((standard_id) => {
         return { class_id: savedClass.id, standard_id, createdBy: user_id, updatedBy: user_id };
       });
-      const classStandards = await Class_standard.bulkCreate(processedClassStandards, { transaction: t });
+      if(processedClassStandards.length) await Class_standard.bulkCreate(processedClassStandards, { transaction: t });
       const processedClassTeachers = reqBody.assigned_teacher_ids.map((teacher_id) => {
         return { class_id: savedClass.id, teacher_id, createdBy: user_id, updatedBy: user_id };
       });
-      const classTeachers = await Class_teacher.bulkCreate(processedClassTeachers, { transaction: t });
+      if(processedClassTeachers.length) await Class_teacher.bulkCreate(processedClassTeachers, { transaction: t });
       const processedClassStudents = reqBody.assigned_student_ids.map((student_id) => {
         return { class_id: savedClass.id, student_id, createdBy: user_id, updatedBy: user_id };
       });
       //const classTeachers = await Class_teacher.bulkCreate(processedClassTeachers);
-      const classStudents = await Class_student.bulkCreate(processedClassStudents, { transaction: t });
+      if(processedClassStudents.length) await Class_student.bulkCreate(processedClassStudents, { transaction: t });
 
       await modelHelper.addSettings(savedClass.id, null, classSettings, t);
 
@@ -213,6 +216,11 @@ module.exports = {
           "grade",
           "school",
           {
+            model: Class_standard_subject_group,
+            required: false,
+            include: ["subject"],
+          },
+          {
             model: Class_standard,
             required: false,
             include: ["standard"],
@@ -243,6 +251,12 @@ module.exports = {
           return {
             ...row.toJSON(),
             class_teachers: row.toJSON().class_teachers.map((item) => item.teacher),
+          };
+        })
+        .map((row) => {
+          return {
+            ...row,
+            class_standard_subject_groups: row.class_standard_subject_groups.map((item) => item.subject),
           };
         })
         .map((row) => {
@@ -290,6 +304,11 @@ module.exports = {
         include: [
           "grade",
           "school",
+          {
+            model: Class_standard_subject_group,
+            required: false,
+            include: ["subject"],
+          },
           {
             model: Class_standard,
             required: false,
@@ -359,6 +378,7 @@ module.exports = {
       if (!classDetails) return utils.responseGenerator(StatusCodes.BAD_REQUEST, "Class does not exist");
       const processedRow = { ...classDetails.toJSON() };
       processedRow.class_teachers = processedRow.class_teachers.map((item) => item.teacher);
+      processedRow.class_standard_subject_groups = processedRow.class_standard_subject_groups.map((item) => item.subject);
       processedRow.class_standards = processedRow.class_standards.map((item) => item.standard);
       processedRow.class_students = processedRow.class_students.map((item) => item.student);
       //finding class owner
@@ -401,6 +421,7 @@ module.exports = {
         description,
         school_id,
         // grade, //removed grade by b
+        assigned_standard_subject_group_ids,
         assigned_teacher_ids,
         assigned_standard_ids,
         assigned_student_ids,
@@ -416,22 +437,29 @@ module.exports = {
       classDetails.number_of_students = number_of_students ? number_of_students : classDetails.number_of_students;
       classDetails.status = status != undefined ? status : classDetails.status;
       await classDetails.save();
+      if (assigned_standard_subject_group_ids) {
+        const processedStandardSubjectGroups = assigned_standard_subject_group_ids.map((subject_id) => {
+          return { class_id: classDetails.id, subject_id: subject_id, createdBy: user_id, updatedBy: user_id };
+        });
+        await Class_standard_subject_group.destroy({ where: { class_id: param_id } });
+        await Class_standard_subject_group.bulkCreate(processedStandardSubjectGroups);
+      }
       if (assigned_standard_ids) {
-        const processedClassStandards = reqBody.assigned_standard_ids.map((standard_id) => {
+        const processedClassStandards = assigned_standard_ids.map((standard_id) => {
           return { class_id: classDetails.id, standard_id, createdBy: user_id, updatedBy: user_id };
         });
         await Class_standard.destroy({ where: { class_id: param_id } });
         await Class_standard.bulkCreate(processedClassStandards);
       }
       if (assigned_teacher_ids) {
-        const processedClassTeachers = reqBody.assigned_teacher_ids.map((teacher_id) => {
+        const processedClassTeachers = assigned_teacher_ids.map((teacher_id) => {
           return { class_id: classDetails.id, teacher_id, createdBy: user_id, updatedBy: user_id };
         });
         await Class_teacher.destroy({ where: { class_id: param_id } });
         await Class_teacher.bulkCreate(processedClassTeachers);
       }
       if (assigned_student_ids) {
-        const processedClassStudents = reqBody.assigned_student_ids.map((student_id) => {
+        const processedClassStudents = assigned_student_ids.map((student_id) => {
           return { class_id: classDetails.id, student_id, createdBy: user_id, updatedBy: user_id };
         });
         const oldStudentIds = (await Class_student.findAll({ where: { classId: param_id } })).map(i => i.studentId);

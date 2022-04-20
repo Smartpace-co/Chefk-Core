@@ -419,7 +419,7 @@ module.exports = {
       if (req.query.filters) {
         lessonfilter = JSON.parse(req.query.filters);
         if (lessonfilter.grades.length) filter.gradeId = { [Op.in]: lessonfilter.grades };
-        if (lessonfilter.languages.length) filter.languageId = { [Op.in]: lessonfilter.languages };
+        // if (lessonfilter.languages.length) filter.languageId = { [Op.in]: lessonfilter.languages };
       }
 
       if (lessonfilter.seasonal.length == 0) {
@@ -656,7 +656,7 @@ module.exports = {
       if (req.query.filters) {
         lessonfilter = JSON.parse(req.query.filters);
         if (lessonfilter.grades.length) filter.gradeId = { [Op.in]: lessonfilter.grades };
-        if (lessonfilter.languages.length) filter.languageId = { [Op.in]: lessonfilter.languages };
+        // if (lessonfilter.languages.length) filter.languageId = { [Op.in]: lessonfilter.languages };
       }
 
       if (lessonfilter.seasonal.length == 0) {
@@ -930,7 +930,7 @@ module.exports = {
       if (req.query.filters) {
         lessonfilter = JSON.parse(req.query.filters);
         if (lessonfilter.grades.length) filter.gradeId = { [Op.in]: lessonfilter.grades };
-        if (lessonfilter.languages.length) filter.languageId = { [Op.in]: lessonfilter.languages };
+        // if (lessonfilter.languages.length) filter.languageId = { [Op.in]: lessonfilter.languages };
       }
 
       if (lessonfilter.seasonal.length == 0) {
@@ -1055,12 +1055,14 @@ module.exports = {
           {
             model: Country,
             attributes: ["id", "countryName"],
+            required : lessonfilter.countries.length ? true : false,
             where: lessonfilter.countries.length ? { id: { [Op.in]: lessonfilter.countries } } : {},
           },
           {
             model: RecipeTechnique,
             as: "recipeTechniques",
             attributes: ["id", "estimatedTime", "culinaryTechniqueId"],
+            required: lessonfilter.culinaryTechniques.length ? true : false,
             where: lessonfilter.culinaryTechniques.length
               ? { culinaryTechniqueId: { [Op.in]: lessonfilter.culinaryTechniques } }
               : {},
@@ -1069,6 +1071,7 @@ module.exports = {
             model: RecipeIngredient,
             as: "recipeIngredients",
             attributes: ["id", "ingredientId"],
+            required: lessonfilter.ingredients.length ? true : false,
             where: lessonfilter.ingredients.length ? { ingredientId: { [Op.in]: lessonfilter.ingredients } } : {},
             include: [
               {

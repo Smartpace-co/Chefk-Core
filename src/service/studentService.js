@@ -116,7 +116,6 @@ async function createSt(reqBody, t) {
     await notificationService.createNotifications(student.id, reqBody.roleId, reqBody.createdBy, "new_account");
     return data;
   } catch (err) {
-    console.log(err);
     throw err;
   }
 }
@@ -199,6 +198,7 @@ module.exports = {
       });
     } catch (err) {
       await t.rollback();
+      if(err.message.toLowerCase() === "validation error") return utils.responseGenerator(StatusCodes.BAD_REQUEST, "Student already exisit.");
       throw err;
     }
   },
