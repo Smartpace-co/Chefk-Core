@@ -27,15 +27,15 @@ module.exports = (sequelize, DataTypes) => {
         },
       },
 
-      difficultyLevelId: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        field: "difficulty_level_id",
-        references: {
-          model: "difficulty_levels",
-          key: "id",
-        },
-      },
+      //difficultyLevelId: {
+      //  type: DataTypes.INTEGER,
+      //  allowNull: false,
+      //  field: "difficulty_level_id",
+      //  references: {
+      //    model: "difficulty_levels",
+      //    key: "id",
+      //  },
+      //},
 
       // categoryId: {
       //   type: DataTypes.INTEGER,
@@ -128,10 +128,10 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: "safetyLevelId",
       as: "safetyLevel",
     });
-    tool.belongsTo(models.difficulty_levels, {
-      foreignKey: "difficultyLevelId",
-      as: "difficultyLevel",
-    });
+    //tool.belongsTo(models.difficulty_levels, {
+    //  foreignKey: "difficultyLevelId",
+    //  as: "difficultyLevel",
+    //});
     // tool.belongsTo(models.categories, {
     //   foreignKey: "categoryId",
     // });

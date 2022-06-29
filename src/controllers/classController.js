@@ -641,6 +641,7 @@ module.exports = {
    *                         items:
    *                          type: number
    *                        assigned_standard_ids:
+   *                        class_standard_ids:
    *                         type: array
    *                         items:
    *                          type: number

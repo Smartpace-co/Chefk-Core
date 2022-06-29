@@ -434,6 +434,7 @@ router.get("/reportIssue/report/:id", authenticateToken, reportIssueController.g
 
 // ******************* Manage Recipe ********************************
 router.get("/recipe", authenticateToken, recipeController.getAllRecipies);
+router.get("/suggestedRecipe", authenticateToken, recipeController.getSuggestedRecipies);
 
 // ******************* Manage lessons ********************************
 
@@ -446,6 +447,7 @@ router.post(
 
 router.get("/lesson/customSettingList", authenticateToken, lessonsController.customSettingList);
 router.get("/lesson/topRated", authenticateToken, lessonsController.getTopRatedLessons);
+router.get("/lesson/suggestedForYou", authenticateToken, lessonsController.getSuggestedForYouLessons);
 router.get("/lesson/standard", authenticateToken, lessonsController.getStandardList);
 router.get("/lesson/standardLessons", authenticateToken, lessonsController.getStandardLessons);
 router.get("/lesson/find", authenticateToken, lessonsController.getSearchLessons);

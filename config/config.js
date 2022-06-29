@@ -47,7 +47,7 @@ module.exports = {
 
   development: {
     server: {
-      protocol: process.env.PROTOCAL || "http",
+      protocol: process.env.PROTOCAL || "https",
       port: process.env.PORT || 3001,
       hostname: process.env.HOST,
       host_root_path: process.env.HOST + "/chefk-frontend/#",
@@ -60,7 +60,7 @@ module.exports = {
     logging: process.env.DB_LOGGING == "true" || false,
     bcrypt_salt_round: process.env.BCRYPT_SALT_ROUND || 12,
     jwt: {
-      access_token: process.env.JWT_ACCESS_TOKEN,
+      access_token: process.env.JWT_ACCESS_TOKEN || "yourAccessToken",
       login_expires_in: process.env.JWT_LOGIN_EXPIRES_IN,
       reset_password_expires_in: process.env.JWT_RESET_PASSWORD_EXPIRES_IN,
     },

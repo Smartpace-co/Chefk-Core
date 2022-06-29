@@ -8,8 +8,10 @@
     "deploy:build": "npm i",
     "devStart": "nodemon app.js",
     "test": "npm i && pm2 reload chefk-core --update-env",
-    "docker:build": "docker build . -t gcr.io/spatial-arcadia-321321/chefk-core-prod:latest",
-    "docker:push": "docker push  gcr.io/spatial-arcadia-321321/chefk-core-prod:latest"
+    "docker:build": "docker build . -t gcr.io/spatial-arcadia-321321/chefk-core-staging:latest",
+    "docker:push": "docker push  gcr.io/spatial-arcadia-321321/chefk-core-staging:latest",
+    "docker:build:prod": "docker build . -t gcr.io/spatial-arcadia-321321/chefk-core-prod:latest",
+    "docker:push:prod": "docker push  gcr.io/spatial-arcadia-321321/chefk-core-prod:latest"
   },
   "author": "",
   "license": "ISC",

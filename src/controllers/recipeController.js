@@ -99,4 +99,15 @@ module.exports = {
       next(err);
     }
   },
+
+  getSuggestedRecipies: async (req, res, next) => {
+    try {
+      const { id } = req.user;
+      //console.log({"req.user": req.user})
+      let response = await recipeService.getSuggestedForYouLessons(req, id);
+      res.status(response.status).send(response);
+    } catch (err) {
+      next(err);
+    }
+  },
 };

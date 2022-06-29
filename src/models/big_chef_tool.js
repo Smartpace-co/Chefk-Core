@@ -78,6 +78,7 @@ module.exports = (sequelize, DataTypes) => {
     });
     bigChefTool.belongsTo(models.tools, {
       foreignKey: "toolId",
+      as: "tools",
     });
   };
 

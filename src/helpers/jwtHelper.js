@@ -11,6 +11,7 @@ let Student = require("../models/").students;
 module.exports = {
   //note: password hash is only used when rest token needs to be generated
   getAccessToken(user, passwordHash = "") {
+    console.log({loginExpiresIn, resetPasswordExpiresIn})
     const expiresIn = passwordHash == "" ? loginExpiresIn : resetPasswordExpiresIn;
     const accessToken = jwt.sign({ id: user.id, isStudent: false }, accessTokenSecret + passwordHash, {
       expiresIn: expiresIn,

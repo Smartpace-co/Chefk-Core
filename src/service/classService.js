@@ -48,10 +48,12 @@ module.exports = {
         },
         { transaction: t }
       );
+
       const processedStandardSubjectGroups = reqBody.assigned_standard_subject_group_ids.map((subject_id) => {
         return { class_id: savedClass.id, subject_id: subject_id, createdBy: user_id, updatedBy: user_id };
       });
       if(processedStandardSubjectGroups.length) await Class_standard_subject_group.bulkCreate(processedStandardSubjectGroups, { transaction: t });
+      
       const processedClassStandards = reqBody.assigned_standard_ids.map((standard_id) => {
         return { class_id: savedClass.id, standard_id, createdBy: user_id, updatedBy: user_id };
       });

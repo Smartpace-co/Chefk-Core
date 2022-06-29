@@ -63,6 +63,12 @@ async function getRecipe(filter) {
         attributes: ["id"],
       })
     ).id;
+    const moduleToolId = (
+      await ModuleMaster.findOne({
+        where: { moduleKey: "tool" },
+        attributes: ["id"],
+      })
+    ).id;
     const data = await Recipe.findOne({
       where: filter,
       include: [
@@ -71,6 +77,38 @@ async function getRecipe(filter) {
         { association: "cookingSteps", separate: true },
         { association: "servingSteps", separate: true },
         { association: "recipeTechniques", separate: true, include: "culinaryTechnique" },
+        {
+          association: "bigChefTools", separate: true, include: [
+            {
+              association: "tools",
+              include: [
+                {
+                  model: Image,
+                  separate: true,
+                  required: false,
+                  attributes: ["id", "image"],
+                  where: { module_id: moduleToolId },
+                },
+              ]
+            }
+          ]
+        },
+        {
+          association: "littleChefTools", separate: true, include: [
+            {
+              association: "tools",
+              include: [
+                {
+                  model: Image,
+                  separate: true,
+                  required: false,
+                  attributes: ["id", "image"],
+                  where: { module_id: moduleToolId },
+                },
+              ]
+            }
+          ]
+        },
         {
           association: "recipeIngredients",
           separate: true,
@@ -103,7 +141,7 @@ async function getRecipe(filter) {
 async function getLesson(filter) {
   try {
     const data = await Lesson.findOne({
-      where: {...filter, status: true, isDeleted: false},
+      where: { ...filter, status: true, isDeleted: false },
       include: [
         "grade",
         { association: "recipe", required: true, attributes: [] },
@@ -414,12 +452,12 @@ module.exports = {
         standards: [],
         nutrients: [],
       };
-      req.query.isFeatured === 'true' ? filter.isFeatured = true: null;
+      req.query.isFeatured === 'true' ? filter.isFeatured = true : null;
 
       if (req.query.filters) {
         lessonfilter = JSON.parse(req.query.filters);
-        if (lessonfilter.grades.length) filter.gradeId = { [Op.in]: lessonfilter.grades };
-        // if (lessonfilter.languages.length) filter.languageId = { [Op.in]: lessonfilter.languages };
+        if (lessonfilter?.grades?.length) filter.gradeId = { [Op.in]: lessonfilter.grades };
+        if (lessonfilter?.languages?.length) filter.languageId = { [Op.in]: lessonfilter.languages };
       }
 
       if (lessonfilter.seasonal.length == 0) {
@@ -444,11 +482,11 @@ module.exports = {
 
       let durationJson = require("../constants/cookingDuration").cookingDuration;
       let cookingDurations = [];
-        for (let filterId of lessonfilter.cookingTime) {
-         const obj = durationJson.find(item => item.id === filterId)
-            cookingDurations.push( { lessonTime: { [Op.between]: [obj.from, obj.to],} } );
-        }
-      let durationCondition = cookingDurations.length? {[Op.or]: cookingDurations}: undefined;
+      for (let filterId of lessonfilter.cookingTime) {
+        const obj = durationJson.find(item => item.id === filterId)
+        cookingDurations.push({ lessonTime: { [Op.between]: [obj.from, obj.to], } });
+      }
+      let durationCondition = cookingDurations.length ? { [Op.or]: cookingDurations } : undefined;
       //pagging
       const { page_size, page_no = 1 } = req.query;
       //fetch lessons
@@ -464,7 +502,7 @@ module.exports = {
           "updatedAt",
           "status",
         ],
-        where: { ...filter, status: true,  isDeleted: false, ...durationCondition },
+        where: { ...filter, status: true, isDeleted: false, ...durationCondition },
         include: [
           { association: "recipe", required: true, attributes: [] },
           {
@@ -501,7 +539,7 @@ module.exports = {
       let lessonRating = await StudentLessonRating.findAll({
         attributes: [[Sequelize.fn('AVG', Sequelize.col('rating')), "avgRating"], "lessonId"],
         group: ["lessonId"],
-        where: {lessonId: lessonData.map(obj => obj.id)}
+        where: { lessonId: lessonData.map(obj => obj.id) }
       });
       lessonRating = JSON.parse(JSON.stringify(lessonRating));
 
@@ -519,27 +557,27 @@ module.exports = {
           "status",
         ],
         where:
-           lessonfilter.seasonal === ""
+          lessonfilter.seasonal === ""
             ? {
               lessonId: { [Op.in]: lessonData.map(obj => obj.id) },
             }
             : {
-                lessonId: { [Op.in]: lessonData.map(obj => obj.id) },
-                holiday: lessonfilter.seasonal ? { [Op.not]: null } : { [Op.eq]: null },
-              },
+              lessonId: { [Op.in]: lessonData.map(obj => obj.id) },
+              holiday: lessonfilter.seasonal ? { [Op.not]: null } : { [Op.eq]: null },
+            },
 
         include: [
           {
             model: Country,
             attributes: ["id", "countryName"],
-            required : lessonfilter.countries.length ? true : false,
+            required: lessonfilter.countries.length ? true : false,
             where: lessonfilter.countries.length ? { id: { [Op.in]: lessonfilter.countries } } : {},
           },
           {
             model: RecipeTechnique,
             as: "recipeTechniques",
             attributes: ["id", "estimatedTime", "culinaryTechniqueId"],
-            required : lessonfilter.culinaryTechniques.length ? true : false,
+            required: lessonfilter.culinaryTechniques.length ? true : false,
             where: lessonfilter.culinaryTechniques.length
               ? { culinaryTechniqueId: { [Op.in]: lessonfilter.culinaryTechniques } }
               : {},
@@ -548,7 +586,7 @@ module.exports = {
             model: RecipeIngredient,
             as: "recipeIngredients",
             attributes: ["id", "ingredientId"],
-            required : lessonfilter.ingredients.length ? true : false,
+            required: lessonfilter.ingredients.length ? true : false,
             where: lessonfilter.ingredients.length ? { ingredientId: { [Op.in]: lessonfilter.ingredients } } : {},
             include: [
               {
@@ -573,11 +611,11 @@ module.exports = {
       recipeData = JSON.parse(JSON.stringify(recipeData));
       //data linking
       lessonData = lessonData.map(obj => {
-        let recipe = recipeData.find(recipeObj => recipeObj.lessonId === obj.id); 
-      // binding rating
-      let rating = lessonRating.find(item => item.lessonId == obj.id);
-      obj.rating = rating ? parseFloat(rating.avgRating).toFixed(1): null;
-      return Object.assign(obj, { recipe });
+        let recipe = recipeData.find(recipeObj => recipeObj.lessonId === obj.id);
+        // binding rating
+        let rating = lessonRating.find(item => item.lessonId == obj.id);
+        obj.rating = rating ? parseFloat(rating.avgRating).toFixed(1) : null;
+        return Object.assign(obj, { recipe });
       });
       let rows = lessonData.filter((obj) => obj.recipe);
       return utils.responseGenerator(StatusCodes.OK, "Lessons fetched", {
@@ -655,8 +693,8 @@ module.exports = {
 
       if (req.query.filters) {
         lessonfilter = JSON.parse(req.query.filters);
-        if (lessonfilter.grades.length) filter.gradeId = { [Op.in]: lessonfilter.grades };
-        // if (lessonfilter.languages.length) filter.languageId = { [Op.in]: lessonfilter.languages };
+        if (lessonfilter?.grades?.length) filter.gradeId = { [Op.in]: lessonfilter.grades };
+        if (lessonfilter?.languages?.length) filter.languageId = { [Op.in]: lessonfilter.languages };
       }
 
       if (lessonfilter.seasonal.length == 0) {
@@ -675,9 +713,9 @@ module.exports = {
       let cookingDurations = [];
       for (let filterId of lessonfilter.cookingTime) {
         const obj = durationJson.find(item => item.id === filterId)
-        cookingDurations.push( { lessonTime: { [Op.between]: [obj.from, obj.to],} } );
+        cookingDurations.push({ lessonTime: { [Op.between]: [obj.from, obj.to], } });
       }
-      let durationCondition = cookingDurations.length? {[Op.or]: cookingDurations}: undefined;
+      let durationCondition = cookingDurations.length ? { [Op.or]: cookingDurations } : undefined;
 
       if (topRatedLessonIds.length > 0) {
         let lessonData = await Lesson.findAll({
@@ -745,28 +783,28 @@ module.exports = {
             "status",
           ],
           where:
-          lessonfilter.seasonal === ""
-          ? {
-            lessonId: { [Op.in]: lessonData.map(obj => obj.id) },
-          }
-          : {
-              lessonId: { [Op.in]: lessonData.map(obj => obj.id) },
-              holiday: lessonfilter.seasonal ? { [Op.not]: null } : { [Op.eq]: null },
-            },
+            lessonfilter.seasonal === ""
+              ? {
+                lessonId: { [Op.in]: lessonData.map(obj => obj.id) },
+              }
+              : {
+                lessonId: { [Op.in]: lessonData.map(obj => obj.id) },
+                holiday: lessonfilter.seasonal ? { [Op.not]: null } : { [Op.eq]: null },
+              },
 
 
           include: [
             {
               model: Country,
               attributes: ["id", "countryName"],
-              required : lessonfilter.countries.length ? true : false,
+              required: lessonfilter.countries.length ? true : false,
               where: lessonfilter.countries.length ? { id: { [Op.in]: lessonfilter.countries } } : {},
             },
             {
               model: RecipeTechnique,
               as: "recipeTechniques",
               attributes: ["id", "estimatedTime", "culinaryTechniqueId"],
-              required : lessonfilter.culinaryTechniques.length ? true : false,
+              required: lessonfilter.culinaryTechniques.length ? true : false,
               where: lessonfilter.culinaryTechniques.length
                 ? { culinaryTechniqueId: { [Op.in]: lessonfilter.culinaryTechniques } }
                 : {},
@@ -775,7 +813,7 @@ module.exports = {
               model: RecipeIngredient,
               as: "recipeIngredients",
               attributes: ["id", "ingredientId"],
-              required : lessonfilter.ingredients.length ? true : false,
+              required: lessonfilter.ingredients.length ? true : false,
               where: lessonfilter.ingredients.length ? { ingredientId: { [Op.in]: lessonfilter.ingredients } } : {},
               include: [
                 {
@@ -802,9 +840,9 @@ module.exports = {
 
         //lesson time and data linking
         let topRated = lessonData.map(obj => {
-        let recipe = recipeData.find(recipeObj => recipeObj.lessonId === obj.id);
-        return Object.assign(obj, { recipe });
-      });
+          let recipe = recipeData.find(recipeObj => recipeObj.lessonId === obj.id);
+          return Object.assign(obj, { recipe });
+        });
         //assign rating value to toRated object
         for (let i = 0; i < topRated.length; i++) {
           for (let j = 0; j < topRatedData.length; j++) {
@@ -834,6 +872,243 @@ module.exports = {
   },
 
 
+  getSuggestedForYouLessons: async (req, user_id) => {
+    try {
+      //fitler
+      const filter = {};
+      const searchBy = {};
+      //order by
+      const order = [];
+      const orderItem = ["id"];
+      const sortOrder = req.query.sort_order;
+      sortOrder == "desc" ? orderItem.push("DESC") : orderItem.push("ASC");
+      order.push(orderItem);
+      let limit = null;
+      if (req.query.viewMore && req.query.viewMore.toString() === 'true') limit = 12;
+      else limit = 3;
+
+      //pagging
+      const { page_size, page_no = 1 } = req.query;
+
+      const bookmarkFilter = {};
+      let bookmarkRequire = false;
+      if (req.query.isBookmarked == 1) {
+        bookmarkFilter.createdBy = user_id;
+        bookmarkFilter.isBookmarked = req.query.isBookmarked;
+        bookmarkRequire = true;
+      }
+
+
+      if (req.query.duration) {
+        var today = new Date();
+        var priorDate = new Date();
+        if (req.query.duration == 'week') filter.createdAt = { [Op.between]: [new Date(priorDate.setDate(priorDate.getDate() - 7)), today] };
+        if (req.query.duration == 'month') filter.createdAt = { [Op.between]: [new Date(priorDate.setDate(priorDate.getDate() - 30)), today] };
+        if (req.query.duration == 'quarter') filter.createdAt = { [Op.between]: [new Date(priorDate.setDate(priorDate.getDate() - 120)), today] };
+        if (req.query.duration == 'year') filter.createdAt = { [Op.between]: [new Date(priorDate.setDate(priorDate.getDate() - 365)), today] };
+      }
+
+      let lessonfilter = {
+        grades: [],
+        languages: [],
+        countries: [],
+        ingredients: [],
+        cookingTime: [],
+        culinaryTechniques: [],
+        seasonal: [],
+        standards: [],
+        nutrients: [],
+      };
+
+      if (req.query.filters) {
+        lessonfilter = JSON.parse(req.query.filters);
+        if (lessonfilter.grades.length) filter.gradeId = { [Op.in]: lessonfilter.grades };
+        //if (lessonfilter.languages.length) filter.languageId = { [Op.in]: lessonfilter.languages };
+      }
+
+      if (lessonfilter.seasonal.length == 0) {
+        lessonfilter.seasonal = "";
+      } else if (lessonfilter.seasonal.length == 1) {
+        if (lessonfilter.seasonal[0] == 1) {
+          lessonfilter.seasonal = true;
+        } else {
+          lessonfilter.seasonal = false;
+        }
+      } else if (lessonfilter.seasonal.length == 2) {
+        lessonfilter.seasonal = "";
+      }
+
+      /*  let assignedLessonData = await AssignLesson.findAll({
+         attributes: [
+           [Sequelize.fn('COUNT', Sequelize.col('lesson_id')), "lessonCount"],
+           "lesson_id",
+         ],
+         where: { created_by: user_id },
+         group: ["lesson_id"],
+         //order: [["lessonCount", "DESC"]],
+       });
+ 
+       assignedLessonData = JSON.parse(JSON.stringify(assignedLessonData));
+       console.log({ assignedLessonData }); */
+
+      let classData = await Class.findAll({
+        attributes: [
+          [Sequelize.fn('COUNT', Sequelize.col('grade_id')), "gradeCount"],
+          "grade_id",
+        ],
+        where: { created_by: user_id },
+        group: ["grade_id"],
+        //order: [["lessonCount", "DESC"]],
+      });
+
+      classData = JSON.parse(JSON.stringify(classData));
+      //console.log({ classData });
+
+      let lessonData = await Lesson.findAll({
+        attributes: [
+          "id",
+          "lessonTitle",
+          "gradeId",
+          "isFeatured",
+          "lessonTime",
+          "createdAt",
+          "updatedAt",
+          "status",
+        ],
+        where: {
+          ...filter, status: true, isDeleted: false, lessonTime: { [Op.gte]: 60 },
+          ...classData?.length > 0 && { grade_id: { [Op.in]: classData.map(obj => obj?.grade_id) } } /* ...durationCondition  */
+        },
+        // attributes: { exclude: ["grade_id"] },
+        include: [
+          { association: "recipe", required: true, attributes: [] },
+          {
+            model: Grade,
+            attributes: ["id", "grade"],
+            // where: lessonfilter.grades.length ? { id: { [Op.in]: lessonfilter.grades } } : {},
+          },
+          {
+            model: BookmarkLesson,
+            attributes: ["lessonId", "isBookmarked"],
+            as: "bookmarkLesson",
+            where: { ...bookmarkFilter },
+            required: bookmarkRequire,
+          },
+          {
+            model: Question,
+            attributes: ["id", "transactionId", "status"],
+            where: { isDelete: false },
+            required: lessonfilter.standards.length ? true : false,
+            include: [
+              {
+                model: QuestionStandard,
+                attributes: ["standardId"],
+                where: lessonfilter.standards.length ? { standardId: { [Op.in]: lessonfilter.standards } } : {},
+                as: "standards",
+                include: [
+                  {
+                    model: Standard,
+                    attributes: ["id", "standardTitle"],
+                  },
+                ],
+              }
+            ],
+          },
+        ],
+        order: Sequelize.literal('rand()'),
+        limit: limit,
+      });
+
+      lessonData = JSON.parse(JSON.stringify(lessonData));
+
+      let recipeData = await Recipe.findAll({
+        attributes: [
+          "id",
+          "lessonId",
+          "recipeTitle",
+          "recipeImage",
+          "countryId",
+          "holiday",
+          "alternativeName",
+          "estimatedMakeTime",
+          "status",
+        ],
+        where:
+          lessonfilter.seasonal === ""
+            ? {
+              lessonId: { [Op.in]: lessonData.map(obj => obj.id) },
+            }
+            : {
+              lessonId: { [Op.in]: lessonData.map(obj => obj.id) },
+              holiday: lessonfilter.seasonal ? { [Op.not]: null } : { [Op.eq]: null },
+            },
+
+
+        include: [
+          {
+            model: Country,
+            attributes: ["id", "countryName"],
+            required: lessonfilter.countries.length ? true : false,
+            where: lessonfilter.countries.length ? { id: { [Op.in]: lessonfilter.countries } } : {},
+          },
+          {
+            model: RecipeTechnique,
+            as: "recipeTechniques",
+            attributes: ["id", "estimatedTime", "culinaryTechniqueId"],
+            required: lessonfilter.culinaryTechniques.length ? true : false,
+            where: lessonfilter.culinaryTechniques.length
+              ? { culinaryTechniqueId: { [Op.in]: lessonfilter.culinaryTechniques } }
+              : {},
+          },
+          {
+            model: RecipeIngredient,
+            as: "recipeIngredients",
+            attributes: ["id", "ingredientId"],
+            required: lessonfilter.ingredients.length ? true : false,
+            where: lessonfilter.ingredients.length ? { ingredientId: { [Op.in]: lessonfilter.ingredients } } : {},
+            include: [
+              {
+                model: Ingredient,
+                attributes: ["id", "ingredientTitle"],
+                required: lessonfilter.nutrients.length ? true : false,
+                include: [
+                  {
+                    model: AdditionalNutrient,
+                    attributes: ["id", "ingredientId", "nutrientId"],
+                    as: "additionalNutrients",
+                    where: lessonfilter.nutrients.length ? { nutrientId: { [Op.in]: lessonfilter.nutrients } } : {},
+                  },
+                ],
+              },
+            ],
+          },
+
+        ],
+        order: Sequelize.literal('rand()'),
+      });
+
+      recipeData = JSON.parse(JSON.stringify(recipeData));
+
+      //lesson time and data linking
+      let suggestedForYou = lessonData.map(obj => {
+        let recipe = recipeData.find(recipeObj => recipeObj.lessonId === obj.id);
+        return Object.assign(obj, { recipe });
+      });
+
+      //suggestedForYou.sort((a, b) => parseFloat(b.rating) - parseFloat(a.rating)); // sort by rating
+      suggestedForYou = suggestedForYou.filter(obj => obj.recipe); // remove object where recipe data not available
+
+      return utils.responseGenerator(StatusCodes.OK, "Top  rated Lessons fetched", suggestedForYou);
+
+
+
+    } catch (err) {
+      console.log("err => ", err);
+      throw err;
+    }
+  },
+
+
   getStandardList: async (req, user_id) => {
     try {
 
@@ -842,9 +1117,9 @@ module.exports = {
 
       let standardIds = (
         await QuestionStandard.findAll({
-        attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('standard_id')) ,'standard_id'],],
-        limit: limit, 
-      })).map(obj=>obj.toJSON().standard_id);
+          attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('standard_id')), 'standard_id'],],
+          limit: limit,
+        })).map(obj => obj.toJSON().standard_id);
       //fitler
       let standardList = await Standard.findAll({
         attributes: ["id", "standardTitle", "image"],
@@ -930,7 +1205,7 @@ module.exports = {
       if (req.query.filters) {
         lessonfilter = JSON.parse(req.query.filters);
         if (lessonfilter.grades.length) filter.gradeId = { [Op.in]: lessonfilter.grades };
-        // if (lessonfilter.languages.length) filter.languageId = { [Op.in]: lessonfilter.languages };
+        //if (lessonfilter.languages.length) filter.languageId = { [Op.in]: lessonfilter.languages };
       }
 
       if (lessonfilter.seasonal.length == 0) {
@@ -1055,7 +1330,7 @@ module.exports = {
           {
             model: Country,
             attributes: ["id", "countryName"],
-            required : lessonfilter.countries.length ? true : false,
+            required: lessonfilter.countries.length ? true : false,
             where: lessonfilter.countries.length ? { id: { [Op.in]: lessonfilter.countries } } : {},
           },
           {
@@ -1107,7 +1382,7 @@ module.exports = {
       throw err;
     }
   },
-
+  //{%22grades%22:[1],%22countries%22:[],%22culinaryTechniques%22:[],%22ingredients%22:[],%22cookingTime%22:[],%22standards%22:[],%22nutrients%22:[],%22seasonal%22:[]}
 
   getSearchLessons: async (req, user_id) => {
     try {
@@ -1165,7 +1440,7 @@ module.exports = {
       let lessonRating = await StudentLessonRating.findAll({
         attributes: [[Sequelize.fn('AVG', Sequelize.col('rating')), "avgRating"], "lessonId"],
         group: ["lessonId"],
-        where: {lessonId: lessonData.map(obj => obj.id)}
+        where: { lessonId: lessonData.map(obj => obj.id) }
       });
       lessonRating = JSON.parse(JSON.stringify(lessonRating));
 
@@ -1224,9 +1499,9 @@ module.exports = {
       recipeData = JSON.parse(JSON.stringify(recipeData));
 
       lessonData = lessonData.map(obj => {
-      // binding rating
-      let rating = lessonRating.find(item => item.lessonId == obj.id);
-      obj.rating = rating ? parseFloat(rating.avgRating).toFixed(1): null;
+        // binding rating
+        let rating = lessonRating.find(item => item.lessonId == obj.id);
+        obj.rating = rating ? parseFloat(rating.avgRating).toFixed(1) : null;
         return Object.assign(obj, { recipe: recipeData.find(recipeObj => recipeObj.lessonId === obj.id) });
       });
       let rows = lessonData.filter((obj) => obj.recipe);
@@ -1399,7 +1674,7 @@ module.exports = {
       let lessonRating = await StudentLessonRating.findOne({
         attributes: [[Sequelize.fn('AVG', Sequelize.col('rating')), "avgRating"], "lessonId"],
         group: ["lessonId"],
-        where: {lessonId: lessonData.lesson.id}
+        where: { lessonId: lessonData.lesson.id }
       });
       lessonRating = JSON.parse(JSON.stringify(lessonRating));
       lessonData.lesson.rating = lessonRating ? parseFloat(lessonRating.avgRating).toFixed(1) : null;
@@ -1628,7 +1903,7 @@ module.exports = {
       //filter
       const ids = await modelHelper.accessibleIds(user_id);
       const lessonCount = await Lesson.count({
-        where: { id: param_id},
+        where: { id: param_id },
       });
       if (!lessonCount) {
         return utils.responseGenerator(StatusCodes.BAD_REQUEST, "Lesson does not exist");
@@ -1721,8 +1996,8 @@ module.exports = {
           }
         },
         include: [
-          {association: "lesson", where:{status: true, isDeleted: false}, attributes:[]},
-          {association: "recipe", required: true, include:["country"]},
+          { association: "lesson", where: { status: true, isDeleted: false }, attributes: [] },
+          { association: "recipe", required: true, include: ["country"] },
           "customSetting",
           {
             association: "studentProgress",
@@ -1733,20 +2008,20 @@ module.exports = {
         order: [["created_at", "DESC"]],
         ...pagging,
       });
-      const data=[];
+      const data = [];
       for (row of rows) {
         row = row.toJSON();
         let lessonTime = 0;
         //recipe time
         lessonTime += row.recipe.estimatedMakeTime ? row.recipe.estimatedMakeTime : 0;
         // performance time
-            // lessonTime += row.estimatedTimeForPreparation ? row.estimatedTimeForPreparation : 0; only for teacher
+        // lessonTime += row.estimatedTimeForPreparation ? row.estimatedTimeForPreparation : 0; only for teacher
         if (row.customSetting) {
           const customSetting = row.customSetting.content;
           //cooking time
           if (customSetting[0].status) lessonTime += customSetting[0].time ? customSetting[0].time : 0;
           //technique time
-          for ( item of customSetting[0].cooking) if (item.status) lessonTime += item.estimatedTime ? item.estimatedTime : 0;
+          for (item of customSetting[0].cooking) if (item.status) lessonTime += item.estimatedTime ? item.estimatedTime : 0;
           //story time
           if (customSetting[1].status) lessonTime += customSetting[1].time ? customSetting[1].time : 0;
           //sensory and experiment time
@@ -1834,7 +2109,7 @@ module.exports = {
         return utils.responseGenerator(StatusCodes.BAD_REQUEST, "Lesson does not exist");
       }
       data.recipe = await getRecipe({ lessonId: param_id });
-      data.recipe.country.matchFlags = await getOptionFlags(data.recipe.countryId);
+      !!data.recipe.country.matchFlags && (data.recipe.country.matchFlags = await getOptionFlags(data.recipe.countryId));
       data.conversationSentence = await ConversationSentence.findOne({
         include: [{ association: "category", require: true, where: { title: "Lesson Start" }, attributes: ["title"] }],
       });

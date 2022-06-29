@@ -35,6 +35,16 @@ module.exports = {
     }
   },
 
+  getSuggestedForYouLessons: async (req, res, next) => {
+    try {
+      const { id } = req.user;
+      let response = await lessonsService.getSuggestedForYouLessons(req, id);
+      res.status(response.status).send(response);
+    } catch (err) {
+      next(err);
+    }
+  },
+
   getStandardList: async (req, res, next) => {
     try {
       const { id } = req.user;
