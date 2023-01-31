@@ -63,12 +63,6 @@ async function getRecipe(filter) {
         attributes: ["id"],
       })
     ).id;
-    const moduleToolId = (
-      await ModuleMaster.findOne({
-        where: { moduleKey: "tool" },
-        attributes: ["id"],
-      })
-    ).id;
     const data = await Recipe.findOne({
       where: filter,
       include: [
@@ -77,38 +71,8 @@ async function getRecipe(filter) {
         { association: "cookingSteps", separate: true },
         { association: "servingSteps", separate: true },
         { association: "recipeTechniques", separate: true, include: "culinaryTechnique" },
-        {
-          association: "bigChefTools", separate: true, include: [
-            {
-              association: "tools",
-              include: [
-                {
-                  model: Image,
-                  separate: true,
-                  required: false,
-                  attributes: ["id", "image"],
-                  where: { module_id: moduleToolId },
-                },
-              ]
-            }
-          ]
-        },
-        {
-          association: "littleChefTools", separate: true, include: [
-            {
-              association: "tools",
-              include: [
-                {
-                  model: Image,
-                  separate: true,
-                  required: false,
-                  attributes: ["id", "image"],
-                  where: { module_id: moduleToolId },
-                },
-              ]
-            }
-          ]
-        },
+        { association: "bigChefTools", separate: true, include: "tools" },
+        { association: "littleChefTools", separate: true, include: "tools" },
         {
           association: "recipeIngredients",
           separate: true,
@@ -1330,7 +1294,7 @@ module.exports = {
           {
             model: Country,
             attributes: ["id", "countryName"],
-            required: lessonfilter.countries.length ? true : false,
+            required : lessonfilter.countries.length ? true : false,
             where: lessonfilter.countries.length ? { id: { [Op.in]: lessonfilter.countries } } : {},
           },
           {
@@ -1382,7 +1346,7 @@ module.exports = {
       throw err;
     }
   },
-  //{%22grades%22:[1],%22countries%22:[],%22culinaryTechniques%22:[],%22ingredients%22:[],%22cookingTime%22:[],%22standards%22:[],%22nutrients%22:[],%22seasonal%22:[]}
+
 
   getSearchLessons: async (req, user_id) => {
     try {
@@ -2109,7 +2073,7 @@ module.exports = {
         return utils.responseGenerator(StatusCodes.BAD_REQUEST, "Lesson does not exist");
       }
       data.recipe = await getRecipe({ lessonId: param_id });
-      !!data.recipe.country.matchFlags && (data.recipe.country.matchFlags = await getOptionFlags(data.recipe.countryId));
+      data.recipe.country.matchFlags = await getOptionFlags(data.recipe.countryId);
       data.conversationSentence = await ConversationSentence.findOne({
         include: [{ association: "category", require: true, where: { title: "Lesson Start" }, attributes: ["title"] }],
       });

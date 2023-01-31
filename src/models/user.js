@@ -76,7 +76,10 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.BOOLEAN,
         defaultValue: false,
       },
-
+      from_clever: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+      },
       createdBy: {
         type: DataTypes.INTEGER,
         references: {
@@ -94,7 +97,6 @@ module.exports = (sequelize, DataTypes) => {
           field: "updated_by",
         },
       },
-
       createdAt: {
         allowNull: false,
         type: DataTypes.DATE,

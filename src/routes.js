@@ -36,6 +36,7 @@ const studentJournalController = require("./controllers/studentJournalController
 const studentStatsController = require("./controllers/studentStatsController");
 const miniGameController = require("./controllers/miniGameController");
 const notificationController = require("./controllers/notificationController");
+const cleverController = require("./controllers/cleverController");
 
 
 // Joi Schema
@@ -55,6 +56,7 @@ const classReportSchema = require("./joiSchema/classReport.Schema");
 const schoolUserController = require("./controllers/schoolUserController");
 const studentService = require("./service/studentService");
 const settingService = require("./joiSchema/setting.Schema");
+const authenticateCleverSecret = require("./middleware/authenticateCleverSecret");
 
 // ****************** Ping ****************************
 
@@ -93,6 +95,18 @@ router.put(
 );
 
 router.delete("/districtAdmin/:id", authenticateToken, districtAdminController.deleteDistrictAdmin);
+
+// ****************** Manage Clever_Auth ****************************
+router.post("/clever/login", authenticateCleverSecret, cleverController.cleverTryLogin);
+
+router.put("/clever/teacher/:userId", authenticateToken, joiValidator(teacherSchema.create), cleverController.completeCreateTeacher);
+
+router.put("/clever/student/:studentId", authenticateToken, joiValidator(studentSchema.create), cleverController.completeCreateStudent);
+
+router.post("/clever/user/sync-data", authenticateToken, cleverController.syncUserWithClever);
+
+router.post("/clever/teacher/sync-data", authenticateToken, cleverController.syncClassesByTeacher);
+
 
 // ****************** Manage Auth ****************************
 router.get("/guestToken", authController.getGuestToken);

@@ -130,6 +130,7 @@ module.exports = {
       let response = await teacherService.createTeacher(reqBody, id);
       res.status(response.status).send(response);
     } catch (err) {
+      console.log("Error CreateTEacher: ", err);
       next(err);
     }
   },

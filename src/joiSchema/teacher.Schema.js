@@ -3,6 +3,7 @@ const Joi = require("joi");
 
 //create
 const create = Joi.object({
+  priceId: Joi.string().allow(null),
   district_id: Joi.number().allow(null),
   school_id: Joi.number().allow(null),
   custom_district_name: Joi.string().max(45),

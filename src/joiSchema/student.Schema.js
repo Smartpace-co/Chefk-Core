@@ -2,6 +2,7 @@
 const Joi = require("joi").extend(require("@joi/date"));
 //create
 const create = Joi.object({
+  priceId: Joi.string().allow(null),
   userName: Joi.string().max(45).required(),
   districtId: Joi.number().allow(null),
   customDistrictName: Joi.string().max(45).allow(null, ""),

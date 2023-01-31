@@ -1,3 +1,4 @@
+const path = require('path')
 const express = require("express");
 const logger = require("morgan");
 const cookieParser = require("cookie-parser");
@@ -7,6 +8,8 @@ const swaggerUi = require("swagger-ui-express");
 const swaggerJSDoc = require("swagger-jsdoc");
 const globalErrorHandler = require("./src/middleware/globalErrorHandler");
 const pageNotFoundErrorHandler = require("./src/middleware/pageNotFoundErrorHandler");
+
+const cleverController = require('./src/controllers/cleverController');
 
 const app = express();
 const debug = require("debug")("myapp:app");
@@ -69,6 +72,9 @@ const options = {
 
 const swaggerSpec = swaggerJSDoc(options);
 
+// Redirect-url for clever-sso
+app.get('/oauth/clever', cleverController.oauthClever);
+
 // image upload static folder
 app.use("/uploads", express.static("./uploads"));
 
@@ -89,7 +95,7 @@ db.sequelize
   .then(() => {
     console.log("Connection has been established successfully.");
     app.listen(config.server.port, () => {
-      console.log(`App listening on port: ${config.server.port}`);
+      console.log(`App listening on port: http://127.0.0.1:${config.server.port}`);
       app.emit("appStarted");
     });
   })

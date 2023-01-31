@@ -44,8 +44,12 @@ module.exports = {
       currency: process.env.STRIPE_CURRENCY || "USD",
     },
   },
-
   development: {
+    clever: {
+      redirectUri: process.env.CLEVER_REDIRECT_URI,
+      clientId: process.env.CLEVER_CLIENT_ID,
+      clientSecret: process.env.CLEVER_CLIENT_SECRET,
+    },
     server: {
       protocol: process.env.PROTOCAL || "https",
       port: process.env.PORT || 3001,
@@ -86,8 +90,12 @@ module.exports = {
       currency: process.env.STRIPE_CURRENCY || "USD",
     },
   },
-
   stage: {
+    clever: {
+      redirectUri: process.env.CLEVER_REDIRECT_URI,
+      clientId: process.env.CLEVER_CLIENT_ID,
+      clientSecret: process.env.CLEVER_CLIENT_SECRET,
+    },
     server: {
       protocol: process.env.PROTOCAL || "https",
       port: process.env.PORT || 3002,
@@ -130,6 +138,11 @@ module.exports = {
   },
 
   prod: {
+    clever: {
+      redirectUri: process.env.CLEVER_REDIRECT_URI,
+      clientId: process.env.CLEVER_CLIENT_ID,
+      clientSecret: process.env.CLEVER_CLIENT_SECRET,
+    },
     server: {
       protocol: process.env.PROTOCAL || "https",
       port: process.env.PORT,

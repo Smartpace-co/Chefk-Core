@@ -8,6 +8,7 @@ const { protocol, host_root_path } = config.server;
 
 module.exports = {
   createSession: async (package, customer, subscribeId, price) => {
+    console.log("stripePrice: ", price);
     try {
       const session = await stripe.checkout.sessions.create({
         mode: "payment",

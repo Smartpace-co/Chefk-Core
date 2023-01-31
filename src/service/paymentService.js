@@ -16,7 +16,6 @@ module.exports = {
   createSession: async (reqBody) => {
     try {
       const { subscribeId, customerId, priceId } = reqBody;
-
       const subscribeDetails = await SubscribePackage.findOne({
         attributes: ["packageId", "sessionId", "subscriptionEndDate"],
         where: { id: subscribeId },
@@ -116,7 +115,7 @@ module.exports = {
         session.id
       );
     } catch (err) {
-      console.log("Error ==> ", err);
+      console.log("11Error ==> ", err);
       throw err;
     }
   },

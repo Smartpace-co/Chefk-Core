@@ -18,6 +18,12 @@ module.exports = {
     });
     return accessToken;
   },
+  getAccessTokenCleverUser(userId, isStudent = false) {
+    const accessToken = jwt.sign({ id: userId, isStudent }, accessTokenSecret , {
+      expiresIn: loginExpiresIn,
+    });
+    return accessToken;
+  },
   getStudentAccessToken(user, passwordHash = "") {
     const expiresIn = passwordHash == "" ? loginExpiresIn : resetPasswordExpiresIn;
     const accessToken = jwt.sign({ id: user.id, isStudent: true }, accessTokenSecret + passwordHash, {

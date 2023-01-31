@@ -175,6 +175,10 @@ module.exports = (sequelize, DataTypes) => {
           key: "id",
         },
       },
+      from_clever: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+      },
       createdBy: {
         type: DataTypes.INTEGER,
         field: "created_by",
